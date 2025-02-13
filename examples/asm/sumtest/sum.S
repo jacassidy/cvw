@@ -17,10 +17,10 @@ sum:
     sd s0, 0(sp)
     sd s1, 8(sp)
 
-    li s0, 0            # result = 0
+    li s0, 1            # result = 1
     li s1, 1            # i = 1
 for: bgt s1, a0, done   # exit loop if i > n
-    add s0, s0, s1      # result = result + i
+    mul s0, s0, s1      # result = result * i
     addi s1, s1, 1      # i++
     j for               # repeat
 
