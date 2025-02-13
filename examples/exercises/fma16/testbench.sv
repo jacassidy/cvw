@@ -31,6 +31,7 @@ module testbench_fma16;
     begin
       #1; {x, y, z, ctrl, rexpected, flagsexpected} = testvectors[vectornum];
       {roundmode, mul, add, negp, negz} = ctrl[5:0];
+
     end
 
   // check results on falling edge of clk
@@ -41,6 +42,10 @@ module testbench_fma16;
         $display("  result = %h (%h expected) flags = %b (%b expected)", 
           result, rexpected, flags, flagsexpected);
         errors = errors + 1;
+        
+        $display("Result sign: %b \t Exponent %d, Mantisa %b", result[15], result[14:10], result[9:0]);
+        $display("Expect sign: %b \t Exponent %d, Mantisa %b", rexpected[15], rexpected[14:10], rexpected[9:0]);
+
       end
       vectornum = vectornum + 1;
       if (testvectors[vectornum] === 'x) begin 

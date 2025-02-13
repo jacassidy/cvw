@@ -30,7 +30,7 @@ fromhost:
 
 .data
 N:
-    .dword 8
+    .dword 8    
 
 .EQU XLEN,64
 begin_signature:
