@@ -18,6 +18,15 @@ typedef union sp {
 uint16_t easyExponents[] = {15, 0x8000};
 uint16_t easyFracts[] = {0, 0x200, 0x8000}; // 1.0 and 1.1
 
+uint16_t midExponents[] = {1, 7, 14, 16, 0x8000};
+uint16_t midFracts[] = {0, 0x3FF, 0x3FE, 1, 2, 0x8000}; // creates edge cases for normal arithmatic operations
+
+uint16_t specialExponents[] = {0, 1, 31, 30, 0x8000};
+uint16_t specialFracts[] = {0, 0x3FF, 0x3FE, 1, 2, 0x8000}; // creates edge cases for 0, nan, inf, and subnormal
+
+uint16_t subnormExponents[] = {0, 1, 2, 3, 4, 0x8000};
+uint16_t subnormFracts[] = {0x3FF, 0x3FE, 0x001, 0x200, 0x8000};
+
 void softfloatInit(void) {
     softfloat_roundingMode = softfloat_round_minMag; 
     softfloat_exceptionFlags = 0;
@@ -102,8 +111,8 @@ void prepTests(uint16_t *e, uint16_t *f, char *testName, char *desc, float16_t *
         }
 }
 
-void genMulTests(uint16_t *e, uint16_t *f, int sgn, char *testName, char *desc, int roundingMode, int zeroAllowed, int infAllowed, int nanAllowed) {
-    int i, j, k, numCases;
+void genTests(char *testType, uint16_t *e, uint16_t *f, int sgn, int sgn2, char *testName, char *desc, int roundingMode, int zeroAllowed, int infAllowed, int nanAllowed) {
+    int n, i, j, k, l, p, numCases;
     float16_t x, y, z;
     float16_t cases[100000];
     FILE *fptr;
@@ -115,16 +124,51 @@ void genMulTests(uint16_t *e, uint16_t *f, int sgn, char *testName, char *desc, 
         exit(1);
     }
     prepTests(e, f, testName, desc, cases, fptr, &numCases);
-    z.v = 0x0000;
-    for (i=0; i < numCases; i++) { 
-        x.v = cases[i].v;
-        for (j=0; j<numCases; j++) {
-            y.v = cases[j].v;
-            for (k=0; k<=sgn; k++) {
-                y.v ^= (k<<15);
-                genCase(fptr, x, y, z, 1, 0, 0, 0, roundingMode, zeroAllowed, infAllowed, nanAllowed);
+    
+    for (n=0; n < numCases; n++){
+        z.v = cases[n].v;
+        for (i=0; i < numCases; i++) { 
+            x.v = cases[i].v;
+            for (j=0; j<numCases; j++) {
+                y.v = cases[j].v;
+                for (k=0; k<=sgn; k++) {
+                    y.v ^= (k<<15);
+                    for (l=0; l<=sgn2; l++) {
+                        x.v ^= (l<<15);
+                        for (p=0; p<=sgn2; p++) {
+                            z.v ^= (p<<15);
+                            if(testType == "Add"){
+                                genCase(fptr, x, y, z, 0, 1, 0, 0, roundingMode, zeroAllowed, infAllowed, nanAllowed);
+                            } else if (testType == "Multiply") {
+                                genCase(fptr, x, y, z, 1, 0, 0, 0, roundingMode, zeroAllowed, infAllowed, nanAllowed);
+                            } else if (testType == "MultiplyAccumulate") {
+                                genCase(fptr, x, y, z, 1, 1, 0, 0, roundingMode, zeroAllowed, infAllowed, nanAllowed);
+                            }else {
+                                perror("Error: testType unsupported\n");
+                                exit(1);  // Exits with a non-zero status to indicate an error
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+    fclose(fptr);
+}
+
+void genRandomTests(char *testName, int numCases) {
+    FILE *fptr;
+    char fn[80];
+    sprintf(fn, "work/%s.tv", testName);
+    if ((fptr = fopen(fn, "w")) == 0) {
+        printf("Error opening to write file %s\n", fn);
+        exit(1);
+    }
+    for (int i = 0; i < numCases; i++) {
+        float16_t x = {rand() & 0xFFFF};
+        float16_t y = {rand() & 0xFFFF};
+        float16_t z = {rand() & 0xFFFF};
+        genCase(fptr, x, y, z, 1, 1, rand() % 2, rand() % 2, rand() % 4, 1, 1, 1);
     }
     fclose(fptr);
 }
@@ -135,13 +179,32 @@ int main()
     softfloatInit(); // configure softfloat modes
  
     // Test cases: multiplication
-    genMulTests(easyExponents, easyFracts, 0, "fmul_0", "// Multiply with exponent of 0, significand of 1.0 and 1.1, RZ", 0, 0, 0, 0);
+    genTests("Multiply", easyExponents, easyFracts, 0, 0, "fmul_0", "// Multiply with exponent of 0, significand of 1.0 and 1.1, RZ", 0, 0, 0, 0);
 
 /*  // example of how to generate tests with a different rounding mode
     softfloat_roundingMode = softfloat_round_near_even; 
     genMulTests(easyExponents, easyFracts, 0, "fmul_0_rne", "// Multiply with exponent of 0, significand of 1.0 and 1.1, RNE", 1, 0, 0, 0); */
 
     // Add your cases here
+    genTests("Multiply", midExponents, midFracts, 0, 0, "fmul_1", "// Multiply with easy case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("Multiply", midExponents, midFracts, 1, 0, "fmul_2", "// Negative multiply with easy case exponenets and fractions, RZ", 0, 0, 0, 0);
+
+    genTests("Add", easyExponents, easyFracts, 0, 0, "fadd_0", "// Add with easy case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("Add", midExponents, midFracts, 0, 0, "fadd_1", "// Add with mid case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("Add", midExponents, midFracts, 1, 0, "fadd_2", "// Negative add with mid case exponenets and fractions, RZ", 0, 0, 0, 0);
+
+    genTests("MultiplyAccumulate", easyExponents, easyFracts, 0, 0, "fma_0", "// Add and multiply with easy case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("MultiplyAccumulate", midExponents, midFracts, 0, 0, "fma_1", "// Add and multiply with mid case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 0, "fma_2", "// Negative add and multiply with mid case exponenets and fractions, RZ", 0, 0, 0, 0);
   
+    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rz", "// Negative add and multiply with edge case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rne", "// Negative add and multiply with edge case exponenets and fractions, RNE", 1, 0, 0, 0);
+    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rn", "// Negative add and multiply with edge case exponenets and fractions, RN", 3, 0, 0, 0);
+    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rp", "// Negative add and multiply with edge case exponenets and fractions, RP", 2, 0, 0, 0);
+    
+    genRandomTests("fma_random", 10000);
+    genTests("MultiplyAccumulate", subnormExponents, subnormFracts, 1, 1, "fma_subnorm_rp", "// Subnorm multiply accumulate with edge case exponenets and fractions, RP", 0, 0, 0, 0);
+
+
     return 0;
 }
