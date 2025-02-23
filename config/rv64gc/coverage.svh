@@ -21,23 +21,15 @@
 `define ZBB_COVERAGE
 `define ZBC_COVERAGE
 `define ZBS_COVERAGE
-`define ZFA_F_COVERAGE
-`define ZFA_D_COVERAGE
-`define ZFA_ZFH_COVERAGE
-`define ZFA_ZFH_D_COVERAGE
+`define ZFA_COVERAGE
 `define ZFH_COVERAGE
-`define ZFH_D_COVERAGE
 // Note: Zfhmin is a subset of Zfh, so usually only one or the other would be used.  When Zfhmin and D are supported, ZfhD should also be enabled
 `define ZFHMIN_COVERAGE
-`define ZFHMIN_D_COVERAGE
 // Note: Zmmul is a subset of M, so usually only one or the other would be used.
 `define ZMMUL_COVERAGE
 `define ZICOND_COVERAGE
 `define ZCA_COVERAGE
 `define ZCB_COVERAGE
-`define ZCB_M_COVERAGE
-`define ZCB_ZBB_COVERAGE
-`define ZCB_ZBA_COVERAGE
 `define ZCD_COVERAGE
 `define ZICSR_COVERAGE
 `define ZBKB_COVERAGE
@@ -52,16 +44,23 @@
 // Privileged extensions
 `define RV64VM_COVERAGE
 `define ZICSRM_COVERAGE
-`define ZICSRF_COVERAGE
+`define ZICSRS_COVERAGE
 `define ZICSRU_COVERAGE
+`define ZICSRF_COVERAGE
 `define ENDIANU_COVERAGE
 `define ENDIANS_COVERAGE
 `define ENDIANM_COVERAGE
 `define EXCEPTIONSM_COVERAGE
+`define EXCEPTIONSS_COVERAGE
+`define EXCEPTIONSU_COVERAGE
+`define EXCEPTIONSF_COVERAGE
 `define EXCEPTIONSZC_COVERAGE
 `define ZICNTRU_COVERAGE
 `define ZICNTRS_COVERAGE
 `define ZICNTRM_COVERAGE
+`define INTERRUPTSU_COVERAGE
+// `define INTERRUPTSM_COVERAGE
+// `define INTERRUPTSS_COVERAGE
 
 // `define RV64VM_PMP_COVERAGE
 // `define RV64CBO_VM_COVERAGE
