@@ -330,7 +330,7 @@ module testbench;
     endcase
   end // always_comb
   // fsm output control logic
-  assign reset_ext = CurrState == STATE_TESTBENCH_RESET | CurrState == STATE_INIT_TEST |
+  assign reset_ext = 0 | CurrState == STATE_TESTBENCH_RESET | CurrState == STATE_INIT_TEST |
                      CurrState == STATE_RESET_MEMORIES | CurrState == STATE_RESET_MEMORIES2 |
                      CurrState == STATE_LOAD_MEMORIES | CurrState ==STATE_RESET_TEST;
   // this initialization is very expensive, only do it for coremark.
