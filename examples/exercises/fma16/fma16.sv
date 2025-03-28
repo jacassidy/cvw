@@ -17,28 +17,33 @@ module  fma16 (
 
     assign ResultSign = OpASign ^ OpBSign;
 
-    logic [10:0] OpAMantisa, OpBMantisa;
-    logic [21:0] IntermediateResultMantisa;
+    logic   [10:0]  OpAMantisa, OpBMantisa;
+    logic   [4:0]   OpAExponent, OpBExponent;
+    logic   [5:0]   IntermendiateResultExponent, IntermendiateResultExponentp1;
+    logic   [21:0]  IntermediateResultMantisa;
 
     assign OpASign = OperandA[15];
     assign OpBSign = OperandB[15];
+
+    assign OpAExponent = OperandA[14:10];
+    assign OpBExponent = OperandB[14:10];
 
     assign OpAMantisa = {1'b1, OperandA[9:0]};
     assign OpBMantisa = {1'b1, OperandB[9:0]};
 
     assign IntermediateResultMantisa = OpAMantisa * OpBMantisa;
 
+    assign IntermendiateResultExponent = OpAExponent + OpBExponent - 5'd15;
+    assign IntermendiateResultExponentp1 = IntermendiateResultExponent + 1;
+
     always_comb begin
-        if(IntermediateResultMantisa[21]) begin
-            result = {ResultSign, 5'd16, IntermediateResultMantisa[20:11]};
+        if(IntermediateResultMantisa[21]) begin  
+            result = {ResultSign, IntermendiateResultExponentp1[4:0], IntermediateResultMantisa[20:11]};
         end else begin
-            result = {ResultSign, 5'd15, IntermediateResultMantisa[19:10]};
+            result = {ResultSign, IntermendiateResultExponent[4:0], IntermediateResultMantisa[19:10]};
         end
     end
 
     assign flags = 4'b0;
-
-    
-
 
 endmodule
