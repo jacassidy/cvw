@@ -1,0 +1,1 @@
+38023c0040020441021 //Error: inputs 3802 * 3c00 + 4002 //  result = 48a0 (4102 expected) flags = 0000 (0001 expected)

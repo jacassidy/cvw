@@ -13,36 +13,69 @@ module  fma16 (
     output  logic [15:0]    result, 
     output  logic [3:0]     flags
 );
-    logic OpASign, OpBSign, ResultSign;
+    logic OpASign, OpBSign, OpCSign, ResultSign;
 
     assign ResultSign = OpASign ^ OpBSign;
 
-    logic   [10:0]  OpAMantisa, OpBMantisa;
-    logic   [4:0]   OpAExponent, OpBExponent;
-    logic   [5:0]   IntermendiateResultExponent, IntermendiateResultExponentp1;
-    logic   [21:0]  IntermediateResultMantisa;
+    logic           OpCExponentGreater;
+    logic   [10:0]  OpAMantisa, OpBMantisa, OpCMantisa;
+    logic   [4:0]   OpAExponent, OpBExponent, OpCExponent, ExpectedFinalExponent, AccumulateOpAShiftAmt, AccumulateOpBShiftAmt;
+    logic   [5:0]   IntermendiateResultExponent;
+    logic   [21:0]  IntermediateMultiplicationResultMantisa;
+    logic   [11:0]  AccumulateOperandA, AccumulateOperandB;
+    logic   [12:0]  AccumulateResultMantisa;
+
+    logic   [2:0]   FinalShiftAmt;
 
     assign OpASign = OperandA[15];
-    assign OpBSign = OperandB[15];
+    assign OpBSign = mul ? OperandB[15] : 0;
+    assign OpCSign = add ? OperandC[15] : 0;
 
     assign OpAExponent = OperandA[14:10];
-    assign OpBExponent = OperandB[14:10];
+    assign OpBExponent = mul ? OperandB[14:10] : 5'd15;
+    assign OpCExponent = add ? OperandC[14:10] : 5'b0;
 
     assign OpAMantisa = {1'b1, OperandA[9:0]};
-    assign OpBMantisa = {1'b1, OperandB[9:0]};
+    assign OpBMantisa = {1'b1, (mul ? OperandB[9:0] : 10'b0)};
+    assign OpCMantisa = add ? {1'b1, OperandC[9:0]} : 11'b0;
 
-    assign IntermediateResultMantisa = OpAMantisa * OpBMantisa;
+    assign IntermediateMultiplicationResultMantisa = OpAMantisa * OpBMantisa;
 
     assign IntermendiateResultExponent = OpAExponent + OpBExponent - 5'd15;
-    assign IntermendiateResultExponentp1 = IntermendiateResultExponent + 1;
+    assign {OpCExponentGreater, AccumulateOpBShiftAmt} = IntermendiateResultExponent[4:0] - OpCExponent;
+    assign AccumulateOpAShiftAmt = (~AccumulateOpBShiftAmt[4:0] + 1);
+
+    assign ExpectedFinalExponent = OpCExponentGreater ? OpCExponent : IntermendiateResultExponent[4:0];
+
+    assign AccumulateOperandA = (IntermediateMultiplicationResultMantisa[21:10]) >> (AccumulateOpAShiftAmt & {(5){OpCExponentGreater}});
+    assign AccumulateOperandB = {1'b0, OpCMantisa} >> (AccumulateOpBShiftAmt & {(5){~OpCExponentGreater}});
+
+    assign AccumulateResultMantisa = AccumulateOperandA + AccumulateOperandB;
+
+    //currently only supports positive operands
+    assign result[15] = ResultSign;
 
     always_comb begin
-        if(IntermediateResultMantisa[21]) begin  
-            result = {ResultSign, IntermendiateResultExponentp1[4:0], IntermediateResultMantisa[20:11]};
-        end else begin
-            result = {ResultSign, IntermendiateResultExponent[4:0], IntermediateResultMantisa[19:10]};
+        if (AccumulateResultMantisa[12]) begin
+            FinalShiftAmt = 3'd1;
+            result[14:10] = ExpectedFinalExponent + 2;
+        end else if(AccumulateResultMantisa[11]) begin
+            FinalShiftAmt = 3'd2;
+            result[14:10] = ExpectedFinalExponent + 1;
+        end else if(AccumulateResultMantisa[10]) begin
+            FinalShiftAmt = 3'd3;
+            result[14:10] = ExpectedFinalExponent;
+        end else begin //massive cancelation not supported
+            FinalShiftAmt = 3'd0;
+            result[14:10] = ExpectedFinalExponent;
         end
     end
+
+
+    //have to remove the leading 1
+    logic [12:0] interm;
+    assign interm = (AccumulateResultMantisa << FinalShiftAmt);
+    assign result[9:0] = interm[12:3]; //[12:3]
 
     assign flags = 4'b0;
 
