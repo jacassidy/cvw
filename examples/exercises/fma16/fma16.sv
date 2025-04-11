@@ -22,8 +22,8 @@ module  fma16 (
     logic   [4:0]   OpAExponent, OpBExponent, OpCExponent, ExpectedFinalExponent, AccumulateOpAShiftAmt, AccumulateOpBShiftAmt;
     logic   [5:0]   IntermendiateResultExponent;
     logic   [21:0]  IntermediateMultiplicationResultMantisa;
-    logic   [11:0]  AccumulateOperandA, AccumulateOperandB;
-    logic   [12:0]  AccumulateResultMantisa;
+    logic   [21:0]  AccumulateOperandA, AccumulateOperandB;
+    logic   [22:0]  AccumulateResultMantisa;
 
     logic   [2:0]   FinalShiftAmt;
 
@@ -42,13 +42,15 @@ module  fma16 (
     assign IntermediateMultiplicationResultMantisa = OpAMantisa * OpBMantisa;
 
     assign IntermendiateResultExponent = OpAExponent + OpBExponent - 5'd15;
-    assign {OpCExponentGreater, AccumulateOpBShiftAmt} = IntermendiateResultExponent[4:0] - OpCExponent;
+    logic interm2;
+    assign {interm2, AccumulateOpBShiftAmt} = IntermendiateResultExponent[4:0] - OpCExponent;
+    assign OpCExponentGreater = interm2 ^ (IntermendiateResultExponent[5]);
     assign AccumulateOpAShiftAmt = (~AccumulateOpBShiftAmt[4:0] + 1);
 
     assign ExpectedFinalExponent = OpCExponentGreater ? OpCExponent : IntermendiateResultExponent[4:0];
 
-    assign AccumulateOperandA = (IntermediateMultiplicationResultMantisa[21:10]) >> (AccumulateOpAShiftAmt & {(5){OpCExponentGreater}});
-    assign AccumulateOperandB = {1'b0, OpCMantisa} >> (AccumulateOpBShiftAmt & {(5){~OpCExponentGreater}});
+    assign AccumulateOperandA = (IntermediateMultiplicationResultMantisa[21:0]) >> (AccumulateOpAShiftAmt & {(5){OpCExponentGreater}});
+    assign AccumulateOperandB = {1'b0, OpCMantisa, 10'b0} >> (AccumulateOpBShiftAmt & {(5){~OpCExponentGreater}});
 
     assign AccumulateResultMantisa = AccumulateOperandA + AccumulateOperandB;
 
@@ -56,13 +58,13 @@ module  fma16 (
     assign result[15] = ResultSign;
 
     always_comb begin
-        if (AccumulateResultMantisa[12]) begin
+        if (AccumulateResultMantisa[22]) begin
             FinalShiftAmt = 3'd1;
             result[14:10] = ExpectedFinalExponent + 2;
-        end else if(AccumulateResultMantisa[11]) begin
+        end else if(AccumulateResultMantisa[21]) begin
             FinalShiftAmt = 3'd2;
             result[14:10] = ExpectedFinalExponent + 1;
-        end else if(AccumulateResultMantisa[10]) begin
+        end else if(AccumulateResultMantisa[20]) begin
             FinalShiftAmt = 3'd3;
             result[14:10] = ExpectedFinalExponent;
         end else begin //massive cancelation not supported
@@ -73,9 +75,9 @@ module  fma16 (
 
 
     //have to remove the leading 1
-    logic [12:0] interm;
+    logic [22:0] interm;
     assign interm = (AccumulateResultMantisa << FinalShiftAmt);
-    assign result[9:0] = interm[12:3]; //[12:3]
+    assign result[9:0] = interm[22:13]; //[12:3]
 
     assign flags = 4'b0;
 

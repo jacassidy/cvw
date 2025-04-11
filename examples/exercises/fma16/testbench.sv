@@ -27,7 +27,7 @@ module testbench_fma16;
     begin
       
       // $readmemh("tests/single.tv", testvectors);
-      $readmemh("work/fadd_2.tv", testvectors);
+      $readmemh("work/fma_special_rn.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
     end
@@ -49,6 +49,7 @@ module testbench_fma16;
         `ifdef DEBUG
         $display("\n\n\nInternalSignals");
         $display("Exponent A \t\t%b, (%d)", dut.OpAExponent, dut.OpAExponent);
+        $display("Exponent B \t\t%b, (%d)", dut.OpBExponent, dut.OpBExponent);
         $display("Exponent C \t\t%b, (%d)", dut.OpCExponent, dut.OpCExponent);
         $display("");
         $display("IntermMulExponent \t%b, (%d)", dut.IntermendiateResultExponent, dut.IntermendiateResultExponent);
@@ -56,6 +57,7 @@ module testbench_fma16;
         $display("Result Exponent \t%b, (%d)", result[14:10], result[14:10]);
         $display("");
         $display("Mantisa A \t\t %b", dut.OpAMantisa);
+        $display("Mantisa B \t\t %b", dut.OpBMantisa);
         $display("Mantisa C \t\t %b", dut.OpCMantisa);
         $display("IntermMulMantisa \t%b", dut.IntermediateMultiplicationResultMantisa);
         $display("");
@@ -68,12 +70,12 @@ module testbench_fma16;
         $display("");
         $display("CalcResultMantisa \t%b", result[9:0]);
         $display("TrueResultMantisa \t%b", rexpected[9:0]);
-
         // $display("ResultExp \t\t%b");
         // $display("ExpectedExp \t\t%b", );
         $display("\n\n\n");
-        $display("%h", testvectors[vectornum]);
         `endif
+
+        $display("%h", testvectors[vectornum]);
         $display("//Error: inputs %h * %h + %h", x, y, z);
         $display("//  result = %h (%h expected) flags = %b (%b expected)\n", 
           result, rexpected, flags, flagsexpected);

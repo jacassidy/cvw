@@ -197,10 +197,10 @@ int main()
     genTests("MultiplyAccumulate", midExponents, midFracts, 0, 0, "fma_1", "// Add and multiply with mid case exponenets and fractions, RZ", 0, 0, 0, 0);
     genTests("MultiplyAccumulate", midExponents, midFracts, 1, 0, "fma_2", "// Negative add and multiply with mid case exponenets and fractions, RZ", 0, 0, 0, 0);
   
-    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rz", "// Negative add and multiply with edge case exponenets and fractions, RZ", 0, 0, 0, 0);
-    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rne", "// Negative add and multiply with edge case exponenets and fractions, RNE", 1, 0, 0, 0);
-    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rn", "// Negative add and multiply with edge case exponenets and fractions, RN", 3, 0, 0, 0);
-    genTests("MultiplyAccumulate", midExponents, midFracts, 1, 1, "fma_special_rp", "// Negative add and multiply with edge case exponenets and fractions, RP", 2, 0, 0, 0);
+    genTests("MultiplyAccumulate", specialExponents, specialFracts, 1, 1, "fma_special_rz", "// Negative add and multiply with edge case exponenets and fractions, RZ", 0, 0, 0, 0);
+    genTests("MultiplyAccumulate", specialExponents, specialFracts, 1, 1, "fma_special_rne", "// Negative add and multiply with edge case exponenets and fractions, RNE", 1, 0, 0, 0);
+    genTests("MultiplyAccumulate", specialExponents, specialFracts, 1, 1, "fma_special_rn", "// Negative add and multiply with edge case exponenets and fractions, RN", 3, 0, 0, 0);
+    genTests("MultiplyAccumulate", specialExponents, specialFracts, 1, 1, "fma_special_rp", "// Negative add and multiply with edge case exponenets and fractions, RP", 2, 0, 0, 0);
     
     genRandomTests("fma_random", 10000);
     genTests("MultiplyAccumulate", subnormExponents, subnormFracts, 1, 1, "fma_subnorm_rp", "// Subnorm multiply accumulate with edge case exponenets and fractions, RP", 0, 0, 0, 0);
