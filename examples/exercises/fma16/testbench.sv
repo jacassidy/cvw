@@ -1,5 +1,5 @@
 /* verilator lint_off STMTDLY */
-// `define DEBUG
+`define DEBUG
 
 module testbench_fma16;
   logic        clk, reset;
@@ -26,8 +26,8 @@ module testbench_fma16;
   initial
     begin
       
-      // $readmemh("tests/single.tv", testvectors);
-      $readmemh("work/fma_special_rn.tv", testvectors);
+      $readmemh("tests/single.tv", testvectors);
+      // $readmemh("work/fma_special_rz.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
     end
@@ -43,35 +43,52 @@ module testbench_fma16;
   // check results on falling edge of clk
   always @(negedge clk)
     if (~reset) begin // skip during reset
-      if (result !== rexpected /* | flags !== flagsexpected */) begin  // check result
+      if (result !== rexpected | flags !== flagsexpected) begin  // check result
         CorrectResult = 1'b1;
 
         `ifdef DEBUG
         $display("\n\n\nInternalSignals");
         $display("Exponent A \t\t%b, (%d)", dut.OpAExponent, dut.OpAExponent);
         $display("Exponent B \t\t%b, (%d)", dut.OpBExponent, dut.OpBExponent);
-        $display("Exponent C \t\t%b, (%d)", dut.OpCExponent, dut.OpCExponent);
-        $display("");
-        $display("IntermMulExponent \t%b, (%d)", dut.IntermendiateResultExponent, dut.IntermendiateResultExponent);
-        $display("ExpResult Exponent \t%b, (%d)", dut.ExpectedFinalExponent, dut.ExpectedFinalExponent);
-        $display("Result Exponent \t%b, (%d)", result[14:10], result[14:10]);
-        $display("");
         $display("Mantisa A \t\t %b", dut.OpAMantisa);
         $display("Mantisa B \t\t %b", dut.OpBMantisa);
+        $display("Sign A \t\t %b", dut.OpASign);
+        $display("Sign B \t\t %b", dut.OpBSign);
+        $display("");
+        $display("MulResultExponent \t%b, (%d)", dut.MultiplicationResultExponent, dut.MultiplicationResultExponent);
+        $display("MulResultMantisa \t%b", dut.MultiplicationResultMantisa);
+        $display("MulResultSign \t%b", dut.MultiplicationResultSign);
+        $display("MulResultInf \t\t%b", dut.MulProduceInf);
+        $display("MulInpZero \t\t%b", dut.MultiplcationInputZero);
+        $display("");
+        $display("Exponent C \t\t%b, (%d)", dut.OpCExponent, dut.OpCExponent);
         $display("Mantisa C \t\t %b", dut.OpCMantisa);
-        $display("IntermMulMantisa \t%b", dut.IntermediateMultiplicationResultMantisa);
+        $display("Sign C \t\t %b", dut.OpCSign);
         $display("");
-        $display("OpAShiftAmt \t\t%b", dut.AccumulateOpAShiftAmt);
-        $display("OpAShiftAmt \t\t%b", dut.AccumulateOpBShiftAmt);
+        $display("Exponent Diff \t%b, (%d)", dut.AccumulateExponentDiff, dut.AccumulateExponentDiff);
+        $display("Preshift Exponent \t%b, (%d)", dut.PreshiftFinalExponent, dut.PreshiftFinalExponent);
         $display("");
-        $display("AccumulateOpA \t %b", dut.AccumulateOperandA);
-        $display("AccumulateOpB \t %b", dut.AccumulateOperandB);
+        $display("OpCExponentGreater \t %b", dut.OpCExponentGreater);
+        $display("OpAShiftAmt (Int)\t%b, (%d)", dut.AccumulateOpAShiftAmt, dut.AccumulateOpAShiftAmt);
+        $display("OpBShiftAmt (C)\t%b, (%d)", dut.AccumulateOpBShiftAmt, dut.AccumulateOpBShiftAmt);
+        $display("");
+        $display("AccumulateOpA (Int) \t\t %b %b", dut.AccumulateOperandA, dut.StickyA);
+        $display("AccumulateOpB (C) \t\t %b %b", dut.AccumulateOperandB, dut.StickyB);
+        $display("");
+        $display("AccumulateStandardMantisa \t%b", dut.AccumulateStandardMantisa);
+        $display("AccumulateInvertedMantisa \t%b", dut.AccumulateInvertedMantisa);
+        $display("Select Invterted \t%b", dut.SelectAccumulateInvertedMantisa);
         $display("AccumulateResult \t%b", dut.AccumulateResultMantisa);
+        $display("FinalLeftShiftAmt \t%b (%d)", dut.FinalShiftAmt, dut.FinalShiftAmt);
         $display("");
-        $display("CalcResultMantisa \t%b", result[9:0]);
+        $display("Result Exponent \t%b, (%d)", result[14:10], result[14:10]);
+        $display("True Exponent \t%b, (%d)", rexpected[14:10], rexpected[14:10]);
+        $display("");
+        $display("ResultMantisa \t%b", result[9:0]);
         $display("TrueResultMantisa \t%b", rexpected[9:0]);
-        // $display("ResultExp \t\t%b");
-        // $display("ExpectedExp \t\t%b", );
+        $display("");
+        $display("Arithmatic Invalid \t%b", dut.ArithmaticInvalid);
+        $display("Special Case \t\t%0s", dut.SpecialCase);
         $display("\n\n\n");
         `endif
 

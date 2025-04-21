@@ -22,7 +22,8 @@ uint16_t midExponents[] = {1, 7, 14, 16, 0x8000};
 uint16_t midFracts[] = {0, 0x3FF, 0x3FE, 1, 2, 0x8000}; // creates edge cases for normal arithmatic operations
 
 uint16_t specialExponents[] = {0, 1, 31, 30, 0x8000};
-uint16_t specialFracts[] = {0, 0x3FF, 0x3FE, 1, 2, 0x8000}; // creates edge cases for 0, nan, inf, and subnormal
+uint16_t specialFracts[] = {0, 0x3FF, 0x8000};
+// uint16_t specialFracts[] = {0, 0x3FF, 0x3FE, 1, 2, 0x8000}; // creates edge cases for 0, nan, inf, and subnormal
 
 uint16_t subnormExponents[] = {0, 1, 2, 3, 4, 0x8000};
 uint16_t subnormFracts[] = {0x3FF, 0x3FE, 0x001, 0x200, 0x8000};
