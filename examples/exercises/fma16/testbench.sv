@@ -1,5 +1,5 @@
 /* verilator lint_off STMTDLY */
-`define DEBUG
+`include "fmaUtils.svh"
 
 module testbench_fma16;
   logic        clk, reset;
@@ -26,8 +26,8 @@ module testbench_fma16;
   initial
     begin
       
-      $readmemh("tests/single.tv", testvectors);
-      // $readmemh("work/fma_special_rz.tv", testvectors);
+      // $readmemh("tests/single.tv", testvectors);
+      $readmemh("work/fma_special_rz.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
     end
@@ -58,28 +58,31 @@ module testbench_fma16;
         $display("MulResultExponent \t%b, (%d)", dut.MultiplicationResultExponent, dut.MultiplicationResultExponent);
         $display("MulResultMantisa \t%b", dut.MultiplicationResultMantisa);
         $display("MulResultSign \t%b", dut.MultiplicationResultSign);
-        $display("MulResultInf \t\t%b", dut.MulProduceInf);
+        $display("MulResultInf \t\t%b", dut.MultiplicationProducedInf);
         $display("MulInpZero \t\t%b", dut.MultiplcationInputZero);
         $display("");
         $display("Exponent C \t\t%b, (%d)", dut.OpCExponent, dut.OpCExponent);
         $display("Mantisa C \t\t %b", dut.OpCMantisa);
         $display("Sign C \t\t %b", dut.OpCSign);
         $display("");
-        $display("Exponent Diff \t%b, (%d)", dut.AccumulateExponentDiff, dut.AccumulateExponentDiff);
-        $display("Preshift Exponent \t%b, (%d)", dut.PreshiftFinalExponent, dut.PreshiftFinalExponent);
+        $display("Exponent Diff \t%b, (%d)", dut.Accumulator.AccumulateExponentDiff, dut.Accumulator.AccumulateExponentDiff);
+        $display("Preshift Exponent \t%b, (%d)", dut.AccumulateResultExponent, dut.AccumulateResultExponent);
         $display("");
-        $display("OpCExponentGreater \t %b", dut.OpCExponentGreater);
-        $display("OpAShiftAmt (Int)\t%b, (%d)", dut.AccumulateOpAShiftAmt, dut.AccumulateOpAShiftAmt);
-        $display("OpBShiftAmt (C)\t%b, (%d)", dut.AccumulateOpBShiftAmt, dut.AccumulateOpBShiftAmt);
+        $display("OpCExponentGreater \t %b", dut.Accumulator.OpCExponentGreater);
+        $display("OpAShiftAmt (Int)\t%b, (%d)", dut.Accumulator.AccumulateOpAShiftAmt, dut.Accumulator.AccumulateOpAShiftAmt);
+        $display("OpBShiftAmt (C)\t%b, (%d)", dut.Accumulator.AccumulateOpBShiftAmt, dut.Accumulator.AccumulateOpBShiftAmt);
         $display("");
-        $display("AccumulateOpA (Int) \t\t %b %b", dut.AccumulateOperandA, dut.StickyA);
-        $display("AccumulateOpB (C) \t\t %b %b", dut.AccumulateOperandB, dut.StickyB);
+        $display("AccumulateOpA (Int) \t\t %b %b", dut.Accumulator.AccumulateOperandA, dut.Accumulator.StickyA);
+        $display("AccumulateOpB (C) \t\t %b %b", dut.Accumulator.AccumulateOperandB, dut.Accumulator.StickyB);
+        $display("AccumulateOpB Inv \t\t %b", dut.Accumulator.SelectivelyInvertedAccumulateOpB);
+        $display("CarryInForSubtract\t\t %b %b", {22'b0}, dut.Accumulator.AccumulateSignMismatch);
+        
         $display("");
-        $display("AccumulateStandardMantisa \t%b", dut.AccumulateStandardMantisa);
-        $display("AccumulateInvertedMantisa \t%b", dut.AccumulateInvertedMantisa);
-        $display("Select Invterted \t%b", dut.SelectAccumulateInvertedMantisa);
+        $display("AccumulateStandardMantisa \t%b", dut.Accumulator.AccumulateStandardMantisa);
+        $display("AccumulateInvertedMantisa \t%b", dut.Accumulator.AccumulateInvertedMantisa);
+        $display("Select Invterted \t%b", dut.Accumulator.SelectAccumulateInvertedMantisa);
         $display("AccumulateResult \t%b", dut.AccumulateResultMantisa);
-        $display("FinalLeftShiftAmt \t%b (%d)", dut.FinalShiftAmt, dut.FinalShiftAmt);
+        $display("FinalLeftShiftAmt \t%b (%d)", dut.NormalizationShifter.ShiftAmt, dut.NormalizationShifter.ShiftAmt);
         $display("");
         $display("Result Exponent \t%b, (%d)", result[14:10], result[14:10]);
         $display("True Exponent \t%b, (%d)", rexpected[14:10], rexpected[14:10]);
@@ -88,7 +91,7 @@ module testbench_fma16;
         $display("TrueResultMantisa \t%b", rexpected[9:0]);
         $display("");
         $display("Arithmatic Invalid \t%b", dut.ArithmaticInvalid);
-        $display("Special Case \t\t%0s", dut.SpecialCase);
+        $display("Special Case \t\t%0s", dut.SpecialCaseHandler.SpecialCase);
         $display("\n\n\n");
         `endif
 

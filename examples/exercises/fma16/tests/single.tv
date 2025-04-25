@@ -1,2 +1,3 @@
 7c00_fc00_7c00_0c7e008 //Error: inputs 7c00 * fc00 + 7c00 //  result = fc00 (7e00 expected) flags = 0000 (1000 expected)
 7bff_03ff_03ff_0c43fd1
+1c021c0240020c40021 //Error: inputs 1c02 * 1c02 + 4002 //  result = 7c00 (4002 expected) flags = 0000 (0001 expected)
