@@ -58,7 +58,7 @@ module testbench_fma16;
         $display("MulResultExponent \t%b, (%d)", dut.MultiplicationResultExponent, dut.MultiplicationResultExponent);
         $display("MulResultMantisa \t%b", dut.MultiplicationResultMantisa);
         $display("MulResultSign \t%b", dut.MultiplicationResultSign);
-        $display("MulResultInf \t\t%b", dut.MultiplicationProducedInf);
+        $display("MulResultInf \t\t%b", dut.MultiplicationExponentOverflow);
         $display("MulInpZero \t\t%b", dut.MultiplcationInputZero);
         $display("");
         $display("Exponent C \t\t%b, (%d)", dut.OpCExponent, dut.OpCExponent);

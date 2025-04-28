@@ -31,10 +31,12 @@ module  fma16 (
     logic       AccumulateResultSign;
     logic[4:0]  AccumulateResultExponent;
     logic[23:0] AccumulateResultMantisa;
+    logic       NormalizationOverflow;
 
     logic[4:0]  NormalizedExponent;
     logic[23:0] NormalizedMantisa;
 
+    logic[4:0]  RoundedExponent;
     logic[9:0]  RoundedMantisa;
     
     logic[15:0] AnticipatedResult;
@@ -42,10 +44,11 @@ module  fma16 (
     logic       InexactRound, StickyA, StickyB;
 
     //Intermodule Signals
-    logic       MultiplicationProducedInf;
+    logic       MultiplicationOperandInf;
     logic       ArithmaticInvalid;
 
     logic       AccumulateSignMismatch;
+    logic       RoundUpOverflow;
 
 
     ////Convenience Assignments////
@@ -80,34 +83,38 @@ module  fma16 (
 
     ////Accumulate calculation////
     accumulator Accumulator(.MultiplicationResultSign, .MultiplicationResultExponent, .MultiplicationResultMantisa,
-                            .OpCSign, .OpCExponent, .OpCMantisa, .MultiplicationExponentNegative, .MultiplicationProducedInf,
+                            .OpCSign, .OpCExponent, .OpCMantisa, .MultiplicationExponentNegative, .MultiplicationOperandInf,
                             .MultiplicationResultZero(MultiplcationInputZero), .AccumulateSignMismatch, .StickyA, .StickyB,
                             .AccumulateResultSign, .AccumulateResultExponent, .AccumulateResultMantisa);
 
     //Normalization
     normalizationShifter NormalizationShifter(.AccumulateResultMantisa, .AccumulateResultExponent, 
                                                 .AccumulateSubtraction(AccumulateSignMismatch),
-                                                .NormalizedMantisa, .NormalizedExponent);
+                                                .NormalizedMantisa, .NormalizedExponent, .NormalizationOverflow);
 
-    rounder Rounder(.NormalizedMantisa, .StickyA, .StickyB, .RoundedMantisa, .InexactRound);
+    rounder Rounder(.roundmode, .NormalizedExponent, .NormalizedMantisa, .StickyA, .StickyB, 
+                    .PreRoundOverflow(MultiplicationExponentOverflow | NormalizationOverflow),
+                    .RoundedExponent, .RoundedMantisa, .InexactRound, .RoundUpOverflow);
 
     //Special Cases (inf, Nan, Zero)
-    assign AnticipatedResult = {AccumulateResultSign, NormalizedExponent, RoundedMantisa};
+    assign AnticipatedResult = {AccumulateResultSign, RoundedExponent, RoundedMantisa};
 
     specialCaseHandler SpecialCaseHandler(.OpAExponent, .OpBExponent, .OpCExponent, .OpAMantisa, .OpBMantisa,
                                         .OpCMantisa, .OpCSign, .MultiplicationExponentOverflow, .AccumulateSubtraction(AccumulateSignMismatch),
                                         .MultiplicationResultSign, .AccumulateResultSign, .MultiplcationInputZero, 
-                                        .MultiplicationProducedInf, .ArithmaticInvalid, 
+                                        .MultiplicationOperandInf, .ArithmaticInvalid, 
                                         .OpANan, .OpBNan, .OpCNan,
                                         .AnticipatedResult, .result);
 
     //Flags
-    flagHandler FlagHandler(.roundmode, 
-                            .OpASignalNan(OpANan & ~OpAMantisa[9]),
+    flagHandler FlagHandler(.OpASignalNan(OpANan & ~OpAMantisa[9]),
                             .OpBSignalNan(OpBNan & ~OpBMantisa[9]),
                             .OpCSignalNan(OpCNan & ~OpCMantisa[9]),
                             .ArithmaticInvalid,
                             .InexactRound,
+                            .MultiplicationExponentOverflow,
+                            .NormalizationOverflow,
+                            .RoundUpOverflow,
                             .flags);
 
 endmodule
@@ -122,7 +129,7 @@ module accumulator (
     input   logic[10:0] OpCMantisa,
     
     input   logic       MultiplicationExponentNegative,
-    input   logic       MultiplicationProducedInf,
+    input   logic       MultiplicationOperandInf,
     input   logic       MultiplicationResultZero, 
 
     output  logic       AccumulateSignMismatch,
@@ -189,7 +196,8 @@ module accumulator (
     assign SelectAccumulateInvertedMantisa = ~AccumulateInvertedMantisaNegative & AccumulateSignMismatch;
 
     assign AccumulateResultSign         = MultiplicationResultSign ^ 
-                                        ((AccumulateSignMismatch & SelectAccumulateInvertedMantisa) & ~MultiplicationProducedInf);
+                                        ((AccumulateSignMismatch & SelectAccumulateInvertedMantisa) & ~MultiplicationOperandInf);
+                                        //TODO                                                          May need to consider if multuplication produces inf
     
     assign AccumulateResultExponent     = OpCExponentGreater ? OpCExponent : MultiplicationResultExponent[4:0];
     assign AccumulateResultMantisa      = SelectAccumulateInvertedMantisa ? AccumulateInvertedMantisa : AccumulateStandardMantisa;
@@ -203,7 +211,9 @@ module normalizationShifter (
     input   logic       AccumulateSubtraction,
 
     output  logic[23:0] NormalizedMantisa,
-    output  logic[4:0]  NormalizedExponent
+    output  logic[4:0]  NormalizedExponent,
+
+    output  logic       NormalizationOverflow
 );
     logic   [4:0]   ShiftAmt;
     int             idx;
@@ -214,14 +224,14 @@ module normalizationShifter (
 
         if (AccumulateResultMantisa[23] & ~AccumulateSubtraction) begin //First bit of result is overflow if subtraction was performed
             ShiftAmt = 5'd0;
-            NormalizedExponent = AccumulateResultExponent + 2;
+            {NormalizationOverflow, NormalizedExponent} = AccumulateResultExponent + 2;
         end else begin
             //Priotiry Encoder
             while (idx >= -31 & ~AccumulateResultMantisa[21+idx]) begin
                 idx--;
             end
             ShiftAmt = 5'(2 - idx);
-            NormalizedExponent = 5'(AccumulateResultExponent + idx);
+            {NormalizationOverflow, NormalizedExponent} = AccumulateResultExponent + 5'(idx);
         end            
     end    
     
@@ -230,19 +240,83 @@ module normalizationShifter (
 endmodule
 
 module rounder(
+    input   logic[1:0]  roundmode,
+
+    input   logic[4:0]  NormalizedExponent,
     input   logic[23:0] NormalizedMantisa,
 
     input   logic       StickyA,
     input   logic       StickyB,
 
+    input   logic       PreRoundOverflow, //Needed to determine what to happens (inf or max num)
+
+    output  logic[4:0]  RoundedExponent,
     output  logic[9:0]  RoundedMantisa,
 
-    output  logic       InexactRound
+    output  logic       InexactRound,
+    output  logic       RoundUpOverflow
 );
+    logic   RNE, RNTA, RZ, RN, RP;
+    logic   LeastSigBit, GuardBit, RoundBit, StickyBit;
+    logic   RoundUp;
+    logic   InexactTruncate;
 
-    assign RoundedMantisa   = NormalizedMantisa[22:13];
+    assign RNE  = roundmode == 2'b01;
+    assign RZ   = roundmode == 2'b00;
+    assign RN   = roundmode == 2'b10;
+    assign RP   = roundmode == 2'b11;
+
+    assign LeastSigBit  = NormalizedMantisa[13];
+    assign GuardBit     = NormalizedMantisa[12];
+    assign RoundBit     = NormalizedMantisa[11];
+    assign StickyBit    = (|NormalizedMantisa[10:0]);
+
+    assign RoundUp = 1'b0;
+
+    always_comb begin
+        if(PreRoundOverflow) begin
+            if(RZ) begin //If round zero the result is maxnum
+                RoundedExponent = 5'b11110;
+                RoundedMantisa  = 10'b1111111111;
+            end else begin //otherwise inf is produced during multiplication
+                RoundedExponent = 5'b11111;
+                RoundedMantisa  = 10'b0000000000;
+            end
+            InexactRound     = InexactTruncate;
+            RoundUpOverflow  = 1'b0;
+        end else begin
+            if(RoundUp) begin
+                logic Carry;
+                //TODO round up logic
+                RoundedMantisa   = NormalizedMantisa[22:13];
+                RoundedExponent  = NormalizedExponent;
+                InexactRound     = 1'b1;
+                RoundUpOverflow  = 1'b0;
+                
+                //TODO what happens if this overflows the result
+                // if(MultiplicationExponentOverflow) begin
+                //     if(RZ) begin //If round zero the result is maxnum
+                //         RoundedExponent = 5'b11110;
+                //         RoundedMantisa  = 10'b1111111111;
+                //     end else begin //otherwise inf is produced during multiplication
+                //         RoundedExponent = 5'b11111;
+                //         RoundedMantisa  = 10'b0000000000;
+                //     end
+                //     InexactRound     = InexactRound;
+                // end
+            end else begin
+                //Truncate
+                RoundedMantisa   = NormalizedMantisa[22:13];
+                RoundedExponent  = NormalizedExponent;
+                InexactRound     = InexactTruncate;
+                RoundUpOverflow  = 1'b0;
+            end
+        end
+    end
     //TODO There is a chance for a hyper edge case where the sticky bit is active and its being subtracted and the sticky bit and tunkated bits are all 0 maybe 
-    assign InexactRound     = (|NormalizedMantisa[12:0]) | StickyA | StickyB; //Both sticky bits cannot be one at the same time so theres no chance for cancelation
+    assign InexactTruncate     = GuardBit | RoundBit | StickyBit | StickyA | StickyB; //Both sticky bits cannot be one at the same time so theres no chance for cancelation
+
+    
 endmodule
 
 module specialCaseHandler (
@@ -260,7 +334,7 @@ module specialCaseHandler (
     input   logic       AccumulateResultSign,
 
     output  logic       MultiplcationInputZero,
-    output  logic       MultiplicationProducedInf,
+    output  logic       MultiplicationOperandInf,
     output  logic       ArithmaticInvalid,
 
     output  logic       OpANan,
@@ -299,7 +373,8 @@ module specialCaseHandler (
     assign OpBNan               = (OpBExponentAllOnes & OpBMantisaNonZero);
     assign OpCNan               = (OpCExponentAllOnes & OpCMantisaNonZero);
 
-    assign MultiplicationProducedInf    = MultiplicationExponentOverflow | OpAExponentAllOnes | OpBExponentAllOnes;
+    //TODO multiplication produce INF needs to be reworked as overflow is different than an initial operand being inf in rounding
+    assign MultiplicationOperandInf    = OpAExponentAllOnes | OpBExponentAllOnes;
     assign MultiplcationInputZero       = (OpAExponentZero & OpAMantisaZero) | (OpBExponentZero & OpBMantisaZero);
 
 
@@ -325,8 +400,8 @@ module specialCaseHandler (
             SpecialCase = InputsNaN;
             `endif 
 
-        //If multiplcation results in inf due to overflow of exponent or starting with inf
-        end else if (MultiplicationProducedInf) begin 
+        //If multiplcation results in inf due starting with inf
+        end else if (MultiplicationOperandInf) begin 
 
             //If either OpC is the inverse inf or nan
             if(OpCExponentAllOnes & (AccumulateSubtraction | OpCMantisaNonZero)) begin
@@ -373,29 +448,25 @@ module specialCaseHandler (
 endmodule
 
 module flagHandler (
-    input   logic[1:0]  roundmode,
-
     input   logic       OpASignalNan,
     input   logic       OpBSignalNan, 
     input   logic       OpCSignalNan,
 
     input   logic       ArithmaticInvalid,
     input   logic       InexactRound,
+    input   logic       MultiplicationExponentOverflow,
+    input   logic       NormalizationOverflow,
+    input   logic       RoundUpOverflow,
 
     output  logic[3:0]  flags
 );
-    logic   RNE, RNTA, RZ, RN, RP;
     logic   Invalid, Overflow, Underflow, Inexact;
 
-    assign RNE  = roundmode == 2'b01;
-    assign RZ   = roundmode == 2'b00;
-    assign RN   = roundmode == 2'b10;
-    assign RP   = roundmode == 2'b11;
-
+    //All by definition
     assign Invalid      = OpASignalNan | OpBSignalNan | OpCSignalNan | ArithmaticInvalid;
-    assign Overflow     = 1'b0;
-    assign Underflow    = 1'b0;
-    assign Inexact      = InexactRound;
+    assign Overflow     = MultiplicationExponentOverflow | NormalizationOverflow | RoundUpOverflow;
+    assign Underflow    = 1'b0; //Subnorms not supported
+    assign Inexact      = InexactRound | MultiplicationExponentOverflow; 
 
     assign flags        = {Invalid, Overflow, Underflow, Inexact};
 
