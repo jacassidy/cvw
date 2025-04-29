@@ -84,6 +84,8 @@ module testbench_fma16;
         $display("AccumulateResult \t%b", dut.AccumulateResultMantisa);
         $display("FinalLeftShiftAmt \t%b (%d)", dut.NormalizationShifter.ShiftAmt, dut.NormalizationShifter.ShiftAmt);
         $display("");
+        $display("Accumulate Result Sign \t%b", dut.AccumulateResultSign);
+        $display("");
         $display("Multiplication Oflw \t%b", dut.MultiplicationExponentOverflow);
         $display("Normalization Oflw \t%b", dut.NormalizationOverflow);
         $display("");

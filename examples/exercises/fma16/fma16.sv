@@ -60,7 +60,7 @@ module  fma16 (
     logic       AccumulateSignMismatch;
     logic       RoundUpOverflow;
 
-    
+    logic[3:0]  expectedFlags;
 
 
     ////Convenience Assignments////
@@ -82,11 +82,13 @@ module  fma16 (
     logic MultiplcationInputZero;
     logic MultiplicationExponentOverflow;
     logic MultiplicationExponentNegative;
+    logic MultiplicationExponentUnderflow;
 
     ////Multiplier////
     multiplier Multiplier(.OpASign, .OpBSign, .OpCSign, .OpAExponent, .OpBExponent, .OpCExponent, .OpAMantisa, .OpBMantisa,
                             .OpCMantisa, .MultiplcationInputZero, .MultiplicationResultSign, .MultiplicationResultExponent,
-                            .MultiplicationResultMantisa, .MultiplicationExponentOverflow, .MultiplicationExponentNegative);
+                            .MultiplicationResultMantisa, .MultiplicationExponentOverflow, .MultiplicationExponentUnderflow, 
+                            .MultiplicationExponentNegative);
 
     ////Accumulate calculation////
     accumulator Accumulator(.MultiplicationResultSign, .MultiplicationResultExponent, .MultiplicationResultMantisa,
@@ -97,7 +99,9 @@ module  fma16 (
 
     //Normalization
     normalizationShifter NormalizationShifter(.AccumulateResultMantisa, .AccumulateResultExponent, .AccumulateResultSign, 
-                                                .AccumulateSubtraction(AccumulateSignMismatch), .ZeroResultSign(MultiplicationResultSign & MultiplicationResultExponent[5]), //TODO Fix
+                                                .AccumulateSubtraction(AccumulateSignMismatch),  .MultiplicationExponentOverflow,
+                                                .ZeroResultSign(MultiplicationExponentUnderflow ? (OpASign ^ OpBSign) :
+                                                (MultiplcationInputZero ? (OpASign ^ OpBSign) & OpCSign : 1'b0)), // TODO seperate out and explain
                                                 .NormalizedMantisa, .NormalizedExponent, .NormalizedSign, .NormalizationOverflow);
 
     rounder Rounder(.roundmode, .NormalizedSign, .NormalizedExponent, .NormalizedMantisa, .StickyA, .StickyB, 
@@ -107,13 +111,6 @@ module  fma16 (
     //Special Cases (inf, Nan, Zero)
     assign AnticipatedResult = {NormalizedSign, RoundedExponent, RoundedMantisa};
 
-    specialCaseHandler SpecialCaseHandler(.OpAExponent, .OpBExponent, .OpCExponent, .OpAMantisa, .OpBMantisa,
-                                        .OpCMantisa, .OpCSign, .MultiplicationExponentOverflow, .AccumulateSubtraction(AccumulateSignMismatch),
-                                        .MultiplicationResultSign, .AccumulateResultSign, .MultiplcationInputZero, 
-                                        .MultiplicationOperandInf, .ArithmaticInvalid, 
-                                        .OpANan, .OpBNan, .OpCNan,
-                                        .AnticipatedResult, .result);
-
     //Flags
     flagHandler FlagHandler(.OpASignalNan(OpANan & ~OpAMantisa[9]),
                             .OpBSignalNan(OpBNan & ~OpBMantisa[9]),
@@ -121,9 +118,20 @@ module  fma16 (
                             .ArithmaticInvalid,
                             .InexactRound,
                             .MultiplicationExponentOverflow,
+                            .MultiplicationResultInf(&MultiplicationResultExponent[4:0]),
+                            .MultiplicationExponentUnderflow,
                             .NormalizationOverflow,
                             .RoundUpOverflow,
-                            .flags);
+                            .flags(expectedFlags));
+
+    specialCaseHandler SpecialCaseHandler(.OpAExponent, .OpBExponent, .OpCExponent, .OpAMantisa, .OpBMantisa,
+                                        .OpCMantisa, .OpCSign, .MultiplicationExponentOverflow, .AccumulateSubtraction(AccumulateSignMismatch),
+                                        .MultiplicationResultSign, .AccumulateResultSign, .MultiplcationInputZero, 
+                                        .MultiplicationOperandInf, .ArithmaticInvalid, 
+                                        .OpANan, .OpBNan, .OpCNan, .expectedFlags,
+                                        .AnticipatedResult, .result, .flags);
+
+    
 
 endmodule
 
@@ -147,6 +155,7 @@ module multiplier(
     output  logic[21:0] MultiplicationResultMantisa,
 
     output  logic       MultiplicationExponentOverflow,
+    output  logic       MultiplicationExponentUnderflow,
     output  logic       MultiplicationExponentNegative
 );
     logic[5:0] MultiplicationIntermediateExp;
@@ -158,6 +167,7 @@ module multiplier(
 
     //TODO (think works) Need to ensure that overflow is not due to negative 2s compliment
     assign MultiplicationExponentOverflow   = MultiplicationResultExponent[5] & MultiplicationIntermediateExp[5]; 
+    assign MultiplicationExponentUnderflow  = MultiplicationResultExponent[5] & ~MultiplicationIntermediateExp[5];
     assign MultiplicationExponentNegative   = MultiplicationResultExponent[5];
 
 endmodule
@@ -241,7 +251,6 @@ module accumulator (
 
     assign AccumulateResultSign         = MultiplicationResultSign ^ 
                                         ((AccumulateSignMismatch & SelectAccumulateInvertedMantisa) & ~MultiplicationOperandInf & ~MultiplicationExponentOverflow);
-                                        //TODO                                                          May need to consider if multuplication produces inf
     
     assign AccumulateResultExponent     = OpCExponentGreater ? OpCExponent : MultiplicationResultExponent[4:0];
     assign AccumulateResultMantisa      = SelectAccumulateInvertedMantisa ? AccumulateInvertedMantisa : AccumulateStandardMantisa;
@@ -256,6 +265,7 @@ module normalizationShifter (
     input   logic       AccumulateSubtraction,
 
     input   logic       ZeroResultSign,
+    input   logic       MultiplicationExponentOverflow,
 
     output  logic[23:0] NormalizedMantisa,
     output  logic[4:0]  NormalizedExponent,
@@ -272,7 +282,7 @@ module normalizationShifter (
         
         idx = 1;
 
-        if(~((AccumulateResultMantisa[23] & ~AccumulateSubtraction) | (|AccumulateResultMantisa[22:1]))) begin //If accumulate produces 0
+        if(~((AccumulateResultMantisa[23] & ~AccumulateSubtraction) | (|AccumulateResultMantisa[22:1])) & ~MultiplicationExponentOverflow) begin //If accumulate produces 0
             NormalizedMantisa       = 24'b0;
             NormalizedExponent      = 5'b0;
             NormalizationOverflow   = 1'b0;
@@ -334,55 +344,68 @@ module rounder(
     assign StickyBit    = (|NormalizedMantisa[10:0]);
 
     always_comb begin
-        if (RZ) begin
-            RoundUp = 1'b0;
-        end
-        if (RN) begin
-            if(PreRoundOverflow) begin
-                RoundUp = NormalizedSign;
-            end else begin
-                if(NormalizedSign) begin
-                    casex({LeastSigBit, GuardBit, RoundBit | StickyBit}) 
-                        3'bx01: RoundUp = 1'b1;
-                        3'b010: RoundUp = 1'b1;
-                        3'b110: RoundUp = 1'b1;
-                        3'bx11: RoundUp = 1'b1;
-
-                        default: RoundUp = 1'b0;
-                    endcase
+        case(roundmode)
+            2'b00: begin //RZ
+                RoundUp = 1'b0;
+            end
+            2'b10: begin //RN
+                if(PreRoundOverflow) begin
+                    RoundUp = NormalizedSign;
                 end else begin
-                    RoundUp = 1'b0;
+                    if(NormalizedSign) begin
+                        casez({LeastSigBit, GuardBit, RoundBit | StickyBit}) 
+                            3'b?01: RoundUp = 1'b1;
+                            3'b010: RoundUp = 1'b1;
+                            3'b110: RoundUp = 1'b1;
+                            3'b?11: RoundUp = 1'b1;
+
+                            default: RoundUp = 1'b0;
+                        endcase
+                    end else begin
+                        RoundUp = 1'b0;
+                    end
                 end
             end
-        end
-        if (RNE) begin
-            casex({NormalizedSign, PreRoundOverflow, LeastSigBit, GuardBit, RoundBit | StickyBit}) 
-                5'b0_0_110: RoundUp = 1'b1;
-                5'b0_0_x11: RoundUp = 1'b1;
-                5'b0_1_xxx: RoundUp = 1'b1;
-                
-                5'b1_0_010: RoundUp = 1'b1;
-                5'b1_0_110: RoundUp = 1'b1;
-                5'b1_0_x11: RoundUp = 1'b1;
-                5'b1_1_xxx: RoundUp = 1'b1;
+            2'b01: begin //RNE
+                casez({NormalizedSign, PreRoundOverflow, LeastSigBit, GuardBit, RoundBit | StickyBit}) 
+                    5'b0_0_110: RoundUp = 1'b1;
+                    5'b0_0_?11: RoundUp = 1'b1;
+                    5'b0_1_???: RoundUp = 1'b1;
+                    
+                    5'b1_0_010: RoundUp = 1'b1;
+                    5'b1_0_110: RoundUp = 1'b1;
+                    5'b1_0_?11: RoundUp = 1'b1;
+                    5'b1_1_???: RoundUp = 1'b1;
 
-                default: RoundUp = 1'b0;
-            endcase 
-        end
-        if (RP) begin
-            casex({NormalizedSign, PreRoundOverflow, LeastSigBit, GuardBit, RoundBit | StickyBit}) 
-                5'b0_0_x01: RoundUp = 1'b1;
-                5'b0_0_010: RoundUp = 1'b1;
-                5'b0_0_110: RoundUp = 1'b1;
-                5'b0_0_x11: RoundUp = 1'b1;
-                5'b0_1_xxx: RoundUp = 1'b1;
+                    default: RoundUp = 1'b0;
+                endcase 
+            end
+            2'b11: begin //RP
+                casez({NormalizedSign, PreRoundOverflow, LeastSigBit, GuardBit, RoundBit | StickyBit}) 
+                    5'b0_0_?01: RoundUp = 1'b1;
+                    5'b0_0_010: RoundUp = 1'b1;
+                    5'b0_0_110: RoundUp = 1'b1;
+                    5'b0_0_?11: RoundUp = 1'b1;
+                    5'b0_1_???: RoundUp = 1'b1;
 
-                default: RoundUp = 1'b0;
-            endcase 
-        end
+                    default: RoundUp = 1'b0;
+                endcase 
+            end
+            default: RoundUp = 1'b0;
+        endcase
     end
 
+    logic[4:0]  RoundedUpExponent;
+    logic[11:0] NormalizedMantisaP1;
+    logic[9:0]  RoundedUpMantisa;
+    logic Carry;
+
     always_comb begin
+        RoundedUpExponent   = 'x;
+        NormalizedMantisaP1 = 'x;
+        RoundedUpMantisa    = 'x;
+        Carry               = 'x;
+
         if(PreRoundOverflow) begin
             if(~RoundUp) begin //If round zero the result is maxnum
                 RoundedExponent = 5'b11110;
@@ -395,10 +418,7 @@ module rounder(
             RoundUpOverflow  = 1'b0;
         end else begin
             if(RoundUp) begin
-                logic Carry;
-                logic[4:0]  RoundedUpExponent;
-                logic[11:0] NormalizedMantisaP1;
-                logic[9:0]  RoundedUpMantisa;
+                
                 //TODO round up logic
                 NormalizedMantisaP1 = NormalizedMantisa[23:13] + {10'b0, 1'b1};
 
@@ -459,6 +479,8 @@ module specialCaseHandler (
     input   logic       MultiplicationResultSign,
     input   logic       AccumulateResultSign,
 
+    input   logic[3:0]  expectedFlags,
+
     output  logic       MultiplcationInputZero,
     output  logic       MultiplicationOperandInf,
     output  logic       ArithmaticInvalid,
@@ -468,7 +490,8 @@ module specialCaseHandler (
     output  logic       OpCNan,
 
     input   logic[15:0] AnticipatedResult,
-    output  logic[15:0] result
+    output  logic[15:0] result,
+    output  logic[3:0]  flags
 );
 
     `ifdef DEBUG
@@ -511,6 +534,7 @@ module specialCaseHandler (
             
             result[15:0]            = 16'b0_11111_1000000000; //NAN
             ArithmaticInvalid       = 1'b1;
+            flags                   = 4'b1000;
 
             `ifdef DEBUG
             SpecialCase = ZeroTimesInf;
@@ -521,6 +545,7 @@ module specialCaseHandler (
             
             result[15:0]            = 16'b0_11111_1000000000; //NAN
             ArithmaticInvalid       = 1'b0;
+            flags                   = {expectedFlags[3], 3'b000};
 
             `ifdef DEBUG
             SpecialCase = InputsNaN;
@@ -534,6 +559,7 @@ module specialCaseHandler (
 
                 result[15:0]        = 16'b0_11111_1000000000; //NAN
                 ArithmaticInvalid   = ~(|OpCMantisa[9:0]); // if the reason for entering the case was +inf -inf
+                flags               = {expectedFlags[3], 3'b000};
 
                 `ifdef DEBUG
                 SpecialCase = CalculatedNaN;
@@ -543,6 +569,7 @@ module specialCaseHandler (
 
                 result[15:0]        = {MultiplicationResultSign, 15'b11111_0000000000};//INF
                 ArithmaticInvalid   = 1'b0;
+                flags               = 4'b0000;
 
                 `ifdef DEBUG
                 SpecialCase = MultiplicationOverflow;
@@ -554,6 +581,7 @@ module specialCaseHandler (
 
             result[15:0]            = {OpCSign, 15'b11111_0000000000};//INF
             ArithmaticInvalid       = 1'b0;
+            flags                   = 4'b0000;
 
             `ifdef DEBUG
             SpecialCase             = AdditionOverflow;
@@ -564,6 +592,7 @@ module specialCaseHandler (
 
             result                  = AnticipatedResult;
             ArithmaticInvalid       = 1'b0;
+            flags                   = expectedFlags;
 
             `ifdef DEBUG
             SpecialCase = None;
@@ -581,6 +610,8 @@ module flagHandler (
     input   logic       ArithmaticInvalid,
     input   logic       InexactRound,
     input   logic       MultiplicationExponentOverflow,
+    input   logic       MultiplicationResultInf,
+    input   logic       MultiplicationExponentUnderflow,
     input   logic       NormalizationOverflow,
     input   logic       RoundUpOverflow,
 
@@ -590,9 +621,9 @@ module flagHandler (
 
     //All by definition
     assign Invalid      = OpASignalNan | OpBSignalNan | OpCSignalNan | ArithmaticInvalid;
-    assign Overflow     = MultiplicationExponentOverflow | NormalizationOverflow | RoundUpOverflow;
-    assign Underflow    = 1'b0; //Subnorms not supported
-    assign Inexact      = InexactRound | MultiplicationExponentOverflow; 
+    assign Overflow     = (MultiplicationExponentOverflow | MultiplicationResultInf | NormalizationOverflow | RoundUpOverflow);
+    assign Underflow    = MultiplicationExponentUnderflow;
+    assign Inexact      = InexactRound | MultiplicationExponentOverflow | MultiplicationResultInf; 
 
     assign flags        = {Invalid, Overflow, Underflow, Inexact};
 
