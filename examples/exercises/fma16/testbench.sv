@@ -28,6 +28,7 @@ module testbench_fma16;
       
       // $readmemh("tests/single.tv", testvectors);
       $readmemh("tests/fma_special_rz.tv", testvectors);
+      // $readmemh("tests/baby_torture.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
     end
@@ -43,7 +44,7 @@ module testbench_fma16;
   // check results on falling edge of clk
   always @(negedge clk)
     if (~reset) begin // skip during reset
-      if (result[14:0] !== rexpected[14:0] /*| flags !== flagsexpected*/) begin  // check result
+      if (result[15:0] !== rexpected[15:0] /*| flags !== flagsexpected*/) begin  // check result
         CorrectResult = 1'b1;
 
         `ifdef DEBUG
@@ -83,7 +84,17 @@ module testbench_fma16;
         $display("AccumulateResult \t%b", dut.AccumulateResultMantisa);
         $display("FinalLeftShiftAmt \t%b (%d)", dut.NormalizationShifter.ShiftAmt, dut.NormalizationShifter.ShiftAmt);
         $display("");
+        $display("Multiplication Oflw \t%b", dut.MultiplicationExponentOverflow);
         $display("Normalization Oflw \t%b", dut.NormalizationOverflow);
+        $display("");
+        $display("Rounding Mode RN \t%b", dut.Rounder.RN);
+        $display("Rounding Mode RNE \t%b", dut.Rounder.RNE);
+        $display("");
+        $display("LeastSigBit \t\t%b", dut.Rounder.LeastSigBit);
+        $display("GuardBit \t\t%b", dut.Rounder.GuardBit);
+        $display("RoundBit | StickyBit \t%b", dut.Rounder.RoundBit | dut.Rounder.StickyBit);
+        $display("");
+        $display("Round Up \t\t%b", dut.Rounder.RoundUp);
         $display("");
         $display("Result Exponent \t%b, (%d)", result[14:10], result[14:10]);
         $display("True Exponent \t%b, (%d)", rexpected[14:10], rexpected[14:10]);
