@@ -2,6 +2,15 @@
 
 //Conducts result = A * B + C
 
+// typedef enum logic[5:0] {
+//         None,
+//         ZeroTimesInf,
+//         InputsNaN,
+//         CalculatedNaN,
+//         MultiplicationOverflow,
+//         AdditionOverflow
+// } specialCase;
+
 `include "fmaUtils.svh"
 
 module  fma16 (
@@ -25,7 +34,7 @@ module  fma16 (
     logic       OpANan,         OpBNan,         OpCNan;
     
     logic       MultiplicationResultSign;  
-    logic[5:0]  MultiplicationResultExponent, MultiplicationIntermediateExp;
+    logic[5:0]  MultiplicationResultExponent;
     logic[21:0] MultiplicationResultMantisa;
 
     logic       AccumulateResultSign;
@@ -35,6 +44,7 @@ module  fma16 (
 
     logic[4:0]  NormalizedExponent;
     logic[23:0] NormalizedMantisa;
+    logic       NormalizedSign;
 
     logic[4:0]  RoundedExponent;
     logic[9:0]  RoundedMantisa;
@@ -49,6 +59,8 @@ module  fma16 (
 
     logic       AccumulateSignMismatch;
     logic       RoundUpOverflow;
+
+    
 
 
     ////Convenience Assignments////
@@ -71,15 +83,10 @@ module  fma16 (
     logic MultiplicationExponentOverflow;
     logic MultiplicationExponentNegative;
 
-    assign MultiplicationResultSign         = OpASign ^ OpBSign;
-    assign MultiplicationIntermediateExp    = OpAExponent + OpBExponent;
-    assign MultiplicationResultExponent     = (MultiplicationIntermediateExp - 5'd15) & {(6){~MultiplcationInputZero}};
-    assign MultiplicationResultMantisa      = OpAMantisa * OpBMantisa & {(22){~MultiplcationInputZero}};
-
-    //TODO (think works) Need to ensure that overflow is not due to negative 2s compliment
-    assign MultiplicationExponentOverflow   = MultiplicationResultExponent[5] & MultiplicationIntermediateExp[5]; 
-    assign MultiplicationExponentNegative   = MultiplicationResultExponent[5];
-    
+    ////Multiplier////
+    multiplier Multiplier(.OpASign, .OpBSign, .OpCSign, .OpAExponent, .OpBExponent, .OpCExponent, .OpAMantisa, .OpBMantisa,
+                            .OpCMantisa, .MultiplcationInputZero, .MultiplicationResultSign, .MultiplicationResultExponent,
+                            .MultiplicationResultMantisa, .MultiplicationExponentOverflow, .MultiplicationExponentNegative);
 
     ////Accumulate calculation////
     accumulator Accumulator(.MultiplicationResultSign, .MultiplicationResultExponent, .MultiplicationResultMantisa,
@@ -88,16 +95,16 @@ module  fma16 (
                             .AccumulateResultSign, .AccumulateResultExponent, .AccumulateResultMantisa);
 
     //Normalization
-    normalizationShifter NormalizationShifter(.AccumulateResultMantisa, .AccumulateResultExponent, 
-                                                .AccumulateSubtraction(AccumulateSignMismatch),
-                                                .NormalizedMantisa, .NormalizedExponent, .NormalizationOverflow);
+    normalizationShifter NormalizationShifter(.AccumulateResultMantisa, .AccumulateResultExponent, .AccumulateResultSign, 
+                                                .AccumulateSubtraction(AccumulateSignMismatch), .ZeroResultSign(MultiplicationResultSign & MultiplicationResultExponent[5]),
+                                                .NormalizedMantisa, .NormalizedExponent, .NormalizedSign, .NormalizationOverflow);
 
     rounder Rounder(.roundmode, .NormalizedExponent, .NormalizedMantisa, .StickyA, .StickyB, 
-                    .PreRoundOverflow(MultiplicationExponentOverflow | NormalizationOverflow),
+                    .PreRoundOverflow(MultiplicationExponentOverflow | (NormalizationOverflow /*& (~AccumulateSignMismatch | ~(|OperandC[14:0])))*/)), //If signs mismatch overflow cannt occur (negative bit is overflow bit) unless op c is 0
                     .RoundedExponent, .RoundedMantisa, .InexactRound, .RoundUpOverflow);
 
     //Special Cases (inf, Nan, Zero)
-    assign AnticipatedResult = {AccumulateResultSign, RoundedExponent, RoundedMantisa};
+    assign AnticipatedResult = {NormalizedSign, RoundedExponent, RoundedMantisa};
 
     specialCaseHandler SpecialCaseHandler(.OpAExponent, .OpBExponent, .OpCExponent, .OpAMantisa, .OpBMantisa,
                                         .OpCMantisa, .OpCSign, .MultiplicationExponentOverflow, .AccumulateSubtraction(AccumulateSignMismatch),
@@ -116,6 +123,41 @@ module  fma16 (
                             .NormalizationOverflow,
                             .RoundUpOverflow,
                             .flags);
+
+endmodule
+
+module multiplier(
+    input   logic       OpASign,
+    input   logic       OpBSign,
+    input   logic       OpCSign,
+
+    input   logic[4:0]  OpAExponent,
+    input   logic[4:0]  OpBExponent,
+    input   logic[4:0]  OpCExponent,
+
+    input   logic[10:0] OpAMantisa,
+    input   logic[10:0] OpBMantisa,
+    input   logic[10:0] OpCMantisa,
+
+    input   logic       MultiplcationInputZero,
+
+    output  logic       MultiplicationResultSign,
+    output  logic[5:0]  MultiplicationResultExponent,
+    output  logic[21:0] MultiplicationResultMantisa,
+
+    output  logic       MultiplicationExponentOverflow,
+    output  logic       MultiplicationExponentNegative
+);
+    logic[5:0] MultiplicationIntermediateExp;
+
+    assign MultiplicationResultSign         = OpASign ^ OpBSign;
+    assign MultiplicationIntermediateExp    = OpAExponent + OpBExponent;
+    assign MultiplicationResultExponent     = (MultiplicationIntermediateExp - 5'd15) & {(6){~MultiplcationInputZero}};
+    assign MultiplicationResultMantisa      = OpAMantisa * OpBMantisa & {(22){~MultiplcationInputZero}};
+
+    //TODO (think works) Need to ensure that overflow is not due to negative 2s compliment
+    assign MultiplicationExponentOverflow   = MultiplicationResultExponent[5] & MultiplicationIntermediateExp[5]; 
+    assign MultiplicationExponentNegative   = MultiplicationResultExponent[5];
 
 endmodule
 
@@ -143,10 +185,10 @@ module accumulator (
     logic[21:0]     AccumulateOperandA;
     logic[21:0]     AccumulateOperandB;
 
-    logic[5:0]      AccumulateExponentDiff;
+    logic[6:0]      AccumulateExponentDiff;
     logic           NegExponentDiff;
     logic           OpCExponentGreater;
-    logic[5:0]      AccumulateOpAShiftAmt, AccumulateOpBShiftAmt;
+    logic[6:0]      AccumulateOpAShiftAmt, AccumulateOpBShiftAmt;
 
     logic[21:-20]   ShiftedMultiplicationResultMantisa, ShiftedOpCMantisa;
     logic[22:0]     SelectivelyInvertedAccumulateOpB;
@@ -156,13 +198,13 @@ module accumulator (
     logic           SelectAccumulateInvertedMantisa;
 
     ////-----------CALCULATE SHIFT-----------////
-    assign AccumulateExponentDiff   = 6'(MultiplicationResultExponent[5:0] - {1'b0, OpCExponent});
+    assign AccumulateExponentDiff   = MultiplicationResultExponent[5:0] - {1'b0, OpCExponent};
     assign NegExponentDiff          = AccumulateExponentDiff[5];
     
     assign OpCExponentGreater       = (NegExponentDiff | MultiplicationExponentNegative); 
 
-    assign AccumulateOpBShiftAmt    = AccumulateExponentDiff & {(6){~OpCExponentGreater}};
-    assign AccumulateOpAShiftAmt    = (~AccumulateExponentDiff[5:0] + 1) & {(6){OpCExponentGreater}};
+    assign AccumulateOpBShiftAmt    = AccumulateExponentDiff & {(7){~OpCExponentGreater}};
+    assign AccumulateOpAShiftAmt    = (~AccumulateExponentDiff + 1) & {(7){OpCExponentGreater}};
 
     ////-----------SHIFT-----------////
     assign ShiftedMultiplicationResultMantisa   = {MultiplicationResultMantisa[21:0], 20'b0}    >> AccumulateOpAShiftAmt;
@@ -174,11 +216,11 @@ module accumulator (
     //If the bottom bits are one or if the number was non-zero and has been completely shifted out (can consider the sticky )
     assign StickyA = ((|ShiftedMultiplicationResultMantisa[-1:-20]) | 
                     (~MultiplicationResultZero & (((AccumulateOpAShiftAmt[4] & AccumulateOpAShiftAmt[2]) 
-                    | (AccumulateOpAShiftAmt[4] & AccumulateOpAShiftAmt[3]) | (AccumulateOpAShiftAmt[5])))));
+                    | (AccumulateOpAShiftAmt[4] & AccumulateOpAShiftAmt[3]) | (|AccumulateOpAShiftAmt[6:5])))));
     //When either the bottom bits are 1 or the number is non-zero and all the bits have been shifted out
     assign StickyB = ((|ShiftedOpCMantisa[-1:-20]) | 
                     ((|{OpCExponent, OpCMantisa}) & (((AccumulateOpBShiftAmt[4] & AccumulateOpBShiftAmt[2]) 
-                    | (AccumulateOpBShiftAmt[4] & AccumulateOpBShiftAmt[3]) | (AccumulateOpBShiftAmt[5])))));
+                    | (AccumulateOpBShiftAmt[4] & AccumulateOpBShiftAmt[3]) | (|AccumulateOpBShiftAmt[6:5])))));
 
     ////-----------ADD-----------////
 
@@ -208,10 +250,14 @@ endmodule
 module normalizationShifter (
     input   logic[23:0] AccumulateResultMantisa,
     input   logic[4:0]  AccumulateResultExponent,
+    input   logic       AccumulateResultSign, 
     input   logic       AccumulateSubtraction,
+
+    input   logic       ZeroResultSign,
 
     output  logic[23:0] NormalizedMantisa,
     output  logic[4:0]  NormalizedExponent,
+    output  logic       NormalizedSign,
 
     output  logic       NormalizationOverflow
 );
@@ -222,20 +268,35 @@ module normalizationShifter (
         
         idx = 1;
 
-        if (AccumulateResultMantisa[23] & ~AccumulateSubtraction) begin //First bit of result is overflow if subtraction was performed
-            ShiftAmt = 5'd0;
-            {NormalizationOverflow, NormalizedExponent} = AccumulateResultExponent + 2;
+        if(~((AccumulateResultMantisa[23] & ~AccumulateSubtraction) | (|AccumulateResultMantisa[22:1]))) begin //If accumulate produces 0
+            NormalizedMantisa       = 24'b0;
+            NormalizedExponent      = 5'b0;
+            NormalizationOverflow   = 1'b0;
+            ShiftAmt                = 5'd0;
+            NormalizedSign          = ZeroResultSign;
         end else begin
-            //Priotiry Encoder
-            while (idx >= -31 & ~AccumulateResultMantisa[21+idx]) begin
-                idx--;
-            end
-            ShiftAmt = 5'(2 - idx);
-            {NormalizationOverflow, NormalizedExponent} = AccumulateResultExponent + 5'(idx);
-        end            
+
+            if (AccumulateResultMantisa[23] & ~AccumulateSubtraction) begin //First bit of result is overflow if subtraction was performed
+                logic CarryOut;
+                ShiftAmt = 5'd0;
+                {CarryOut, NormalizedExponent} = AccumulateResultExponent + 2;
+                NormalizationOverflow = CarryOut | (&NormalizedExponent);
+            end else begin
+                logic CarryOut;
+                //Priotiry Encoder
+                while (idx >= -31 & ~AccumulateResultMantisa[21+idx]) begin
+                    idx--;
+                end
+                ShiftAmt = 5'(2 - idx);
+                {CarryOut, NormalizedExponent} = AccumulateResultExponent + 5'(idx);
+                NormalizationOverflow = (CarryOut & (idx >= 0)) | (&NormalizedExponent);;
+            end       
+            NormalizedMantisa = (AccumulateResultMantisa << ShiftAmt);
+            NormalizedSign  = AccumulateResultSign;    
+        end
     end    
     
-    assign NormalizedMantisa = (AccumulateResultMantisa << ShiftAmt);
+    // assign NormalizedMantisa = (AccumulateResultMantisa << ShiftAmt);
 
 endmodule
 
