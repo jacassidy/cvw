@@ -220,7 +220,7 @@ module accumulator (
     assign OpCExponentGreater       = (NegExponentDiff | MultiplicationExponentNegative); 
 
     assign AccumulateOpBShiftAmt    = AccumulateExponentDiff & {(7){~OpCExponentGreater}};
-    assign AccumulateOpAShiftAmt    = (~AccumulateExponentDiff + 1) & {(7){OpCExponentGreater}};
+    assign AccumulateOpAShiftAmt    = (~AccumulateExponentDiff + 1) & {(7){OpCExponentGreater}} & {~MultiplicationExponentNegative, 6'b111111};
 
     ////-----------SHIFT-----------////
     assign ShiftedMultiplicationResultMantisa   = {MultiplicationResultMantisa[21:0], 20'b0}    >> AccumulateOpAShiftAmt;
@@ -415,7 +415,7 @@ module rounder(
                     5'b0_0_?11: RoundUp = 1'b1;
                     5'b0_1_???: RoundUp = 1'b1;
                     
-                    5'b1_0_010: RoundUp = 1'b1;
+                    5'b1_0_010: RoundUp = 1'b0;
                     5'b1_0_110: RoundUp = 1'b1;
                     5'b1_0_?11: RoundUp = 1'b1;
                     5'b1_1_???: RoundUp = 1'b1;

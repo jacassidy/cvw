@@ -27,7 +27,10 @@ module testbench_fma16;
     begin
       
       // $readmemh("tests/single.tv", testvectors);
-      $readmemh("tests/fma_special_rm.tv", testvectors);
+      $readmemh("tests/fma_special_rz.tv", testvectors);
+      // $readmemh("tests/fma_special_rm.tv", testvectors);
+      // $readmemh("tests/fma_special_rne.tv", testvectors);
+      // $readmemh("tests/fma_special_rp.tv", testvectors);
       // $readmemh("tests/baby_torture.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
@@ -44,7 +47,7 @@ module testbench_fma16;
   // check results on falling edge of clk
   always @(negedge clk)
     if (~reset) begin // skip during reset
-      if (result[15:0] !== rexpected[15:0] /*| flags !== flagsexpected*/) begin  // check result
+      if (result[15:0] !== rexpected[15:0] | flags[3:2] !== flagsexpected[3:2]) begin  // check result
         CorrectResult = 1'b1;
 
         `ifdef DEBUG
@@ -56,7 +59,7 @@ module testbench_fma16;
         $display("Sign A \t\t %b", dut.OpASign);
         $display("Sign B \t\t %b", dut.OpBSign);
         $display("");
-        $display("MulResultExponent \t%b, (%d)", dut.MultiplicationResultExponent, dut.MultiplicationResultExponent);
+        $display("MulResultExponent \t%b, (%d)", dut.MultiplicationResultExponent, signed'(dut.MultiplicationResultExponent));
         $display("MulResultMantisa \t%b", dut.MultiplicationResultMantisa);
         $display("MulResultSign \t%b", dut.MultiplicationResultSign);
         $display("MulResultInf \t\t%b", dut.MultiplicationExponentOverflow);
@@ -70,12 +73,13 @@ module testbench_fma16;
         $display("Preshift Exponent \t%b, (%d)", dut.AccumulateResultExponent, dut.AccumulateResultExponent);
         $display("");
         $display("OpCExponentGreater \t %b", dut.Accumulator.OpCExponentGreater);
+        $display("MultiplicationExponentNegative \t %b", dut.MultiplicationExponentNegative);
         $display("OpAShiftAmt (Int)\t%b, (%d)", dut.Accumulator.AccumulateOpAShiftAmt, dut.Accumulator.AccumulateOpAShiftAmt);
         $display("OpBShiftAmt (C)\t%b, (%d)", dut.Accumulator.AccumulateOpBShiftAmt, dut.Accumulator.AccumulateOpBShiftAmt);
         $display("");
         if (dut.Accumulator.SelectAccumulateInvertedMantisa) begin
+          $display("AccumulateOpA Inv (Int) \t %b %b", ~dut.Accumulator.AccumulateOperandA, ~dut.Accumulator.StickyA);
           $display("AccumulateOpB (C) \t\t %b %b", dut.Accumulator.AccumulateOperandB, dut.Accumulator.StickyB);
-          $display("AccumulateOpA (Int) \t\t %b %b", ~dut.Accumulator.AccumulateOperandA, ~dut.Accumulator.StickyA);
           $display("CarryInForSubtract\t\t %b %b", {22'b0}, dut.Accumulator.AccumulateSignMismatch);
           $display("");
           $display("AccumulateInvertedMantisa \t%b", dut.Accumulator.AccumulateInvertedMantisa);
@@ -97,6 +101,8 @@ module testbench_fma16;
         $display("");
         $display("Rounding Mode RN \t%b", dut.Rounder.RN);
         $display("Rounding Mode RNE \t%b", dut.Rounder.RNE);
+        $display("Rounding Mode RZ \t%b", dut.Rounder.RZ);
+        $display("Rounding Mode RP \t%b", dut.Rounder.RP);
         $display("");
         $display("LeastSigBit \t\t%b", dut.Rounder.LeastSigBit);
         $display("GuardBit \t\t%b", dut.Rounder.GuardBit);
@@ -114,6 +120,11 @@ module testbench_fma16;
         $display("");
         $display("Arithmatic Invalid \t%b", dut.ArithmaticInvalid);
         $display("Special Case \t\t%0s", dut.SpecialCaseHandler.SpecialCase);
+        $display("");
+        $display("MultiplicationExponentOverflow \t\t%b", dut.FlagHandler.MultiplicationExponentOverflow);
+        $display("MultiplicationResultInf \t\t%b", dut.FlagHandler.MultiplicationResultInf);
+        $display("NormalizationOverflow \t\t%b", dut.FlagHandler.NormalizationOverflow);
+        $display("RoundUpOverflow \t\t%b", dut.FlagHandler.RoundUpOverflow);
         $display("\n\n\n");
         `endif
 
