@@ -122,7 +122,7 @@ module  fma16 (
                             .ArithmaticInvalid,
                             .InexactRound,
                             .MultiplicationExponentOverflow,
-                            .MultiplicationResultInf(&MultiplicationResultExponent[4:0]),
+                            .FinalResultInf(&NormalizedExponent[4:0]),
                             .MultiplicationExponentUnderflow,
                             .NormalizationOverflow,
                             .RoundUpOverflow,
@@ -324,7 +324,7 @@ module normalizationShifter (
     always_comb begin
         
         idx = 1;
-
+        //TODO Multiplication exponent overflow is to make sure the normalized sign isnt modified on the hyper edge case there is an overflow and the mantisa is 0
         if(~((AccumulateResultMantisa[23] & ~AccumulateSubtraction) | (|AccumulateResultMantisa[22:1])) & ~MultiplicationExponentOverflow) begin //If accumulate produces 0
             NormalizedMantisa       = 24'b0;
             NormalizedExponent      = 5'b0;
@@ -503,7 +503,7 @@ module rounder(
         end
     end
     //TODO There is a chance for a hyper edge case where the sticky bit is active and its being subtracted and the sticky bit and tunkated bits are all 0 maybe 
-    assign InexactTruncate     = GuardBit | RoundBit | StickyBit | StickyA | StickyB; //Both sticky bits cannot be one at the same time so theres no chance for cancelation
+    assign InexactTruncate     = GuardBit | RoundBit | StickyBit /*| StickyA | StickyB*/; //Both sticky bits cannot be one at the same time so theres no chance for cancelation
 
     
 endmodule
@@ -653,7 +653,7 @@ module flagHandler (
     input   logic       ArithmaticInvalid,
     input   logic       InexactRound,
     input   logic       MultiplicationExponentOverflow,
-    input   logic       MultiplicationResultInf,
+    input   logic       FinalResultInf,
     input   logic       MultiplicationExponentUnderflow,
     input   logic       NormalizationOverflow,
     input   logic       RoundUpOverflow,
@@ -664,9 +664,9 @@ module flagHandler (
 
     //All by definition
     assign Invalid      = OpASignalNan | OpBSignalNan | OpCSignalNan | ArithmaticInvalid;
-    assign Overflow     = (MultiplicationExponentOverflow | MultiplicationResultInf | NormalizationOverflow | RoundUpOverflow);
-    assign Underflow    = MultiplicationExponentUnderflow;
-    assign Inexact      = InexactRound | MultiplicationExponentOverflow | MultiplicationResultInf; 
+    assign Overflow     = (MultiplicationExponentOverflow | FinalResultInf | NormalizationOverflow | RoundUpOverflow);
+    assign Underflow    = /*MultiplicationExponentUnderflow;*/ 1'b0;
+    assign Inexact      = InexactRound | Overflow; 
 
     assign flags        = {Invalid, Overflow, Underflow, Inexact};
 

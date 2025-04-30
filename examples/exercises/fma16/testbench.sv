@@ -27,11 +27,13 @@ module testbench_fma16;
     begin
       
       // $readmemh("tests/single.tv", testvectors);
-      $readmemh("tests/fma_special_rz.tv", testvectors);
+      // $readmemh("tests/fma_special_rz.tv", testvectors);
       // $readmemh("tests/fma_special_rm.tv", testvectors);
       // $readmemh("tests/fma_special_rne.tv", testvectors);
       // $readmemh("tests/fma_special_rp.tv", testvectors);
       // $readmemh("tests/baby_torture.tv", testvectors);
+      // $readmemh("tests/torture.tv", testvectors);
+      $readmemh("tests/fma_1.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
     end
@@ -47,7 +49,7 @@ module testbench_fma16;
   // check results on falling edge of clk
   always @(negedge clk)
     if (~reset) begin // skip during reset
-      if (result[15:0] !== rexpected[15:0] | flags[3:2] !== flagsexpected[3:2]) begin  // check result
+      if (result[15:0] !== rexpected[15:0] | flags[3:0] !== flagsexpected[3:0]) begin  // check result
         CorrectResult = 1'b1;
 
         `ifdef DEBUG
@@ -121,10 +123,11 @@ module testbench_fma16;
         $display("Arithmatic Invalid \t%b", dut.ArithmaticInvalid);
         $display("Special Case \t\t%0s", dut.SpecialCaseHandler.SpecialCase);
         $display("");
-        $display("MultiplicationExponentOverflow \t\t%b", dut.FlagHandler.MultiplicationExponentOverflow);
-        $display("MultiplicationResultInf \t\t%b", dut.FlagHandler.MultiplicationResultInf);
-        $display("NormalizationOverflow \t\t%b", dut.FlagHandler.NormalizationOverflow);
-        $display("RoundUpOverflow \t\t%b", dut.FlagHandler.RoundUpOverflow);
+        $display("GuardBit \t\t%b", dut.Rounder.GuardBit);
+        $display("RoundBit \t\t%b", dut.Rounder.RoundBit);
+        $display("StickyBit \t\t%b", dut.Rounder.StickyBit);
+        $display("StickyA \t\t%b", dut.Rounder.StickyA);
+        $display("StickyB \t\t%b", dut.Rounder.StickyB);
         $display("\n\n\n");
         `endif
 
