@@ -27,7 +27,7 @@ module testbench_fma16;
     begin
       
       // $readmemh("tests/single.tv", testvectors);
-      $readmemh("tests/fma_special_rz.tv", testvectors);
+      $readmemh("tests/fma_special_rm.tv", testvectors);
       // $readmemh("tests/baby_torture.tv", testvectors);
       vectornum = 0; errors = 0;
       reset = 1; #22; reset = 0;
@@ -73,13 +73,19 @@ module testbench_fma16;
         $display("OpAShiftAmt (Int)\t%b, (%d)", dut.Accumulator.AccumulateOpAShiftAmt, dut.Accumulator.AccumulateOpAShiftAmt);
         $display("OpBShiftAmt (C)\t%b, (%d)", dut.Accumulator.AccumulateOpBShiftAmt, dut.Accumulator.AccumulateOpBShiftAmt);
         $display("");
-        $display("AccumulateOpA (Int) \t\t %b %b", dut.Accumulator.AccumulateOperandA, dut.Accumulator.StickyA);
-        $display("AccumulateOpB (C) \t\t %b %b", dut.Accumulator.AccumulateOperandB, dut.Accumulator.StickyB);
-        $display("AccumulateOpB Inv \t\t %b", dut.Accumulator.SelectivelyInvertedAccumulateOpB);
-        $display("CarryInForSubtract\t\t %b %b", {22'b0}, dut.Accumulator.AccumulateSignMismatch);
-        $display("");
-        $display("AccumulateStandardMantisa \t%b", dut.Accumulator.AccumulateStandardMantisa);
-        $display("AccumulateInvertedMantisa \t%b", dut.Accumulator.AccumulateInvertedMantisa);
+        if (dut.Accumulator.SelectAccumulateInvertedMantisa) begin
+          $display("AccumulateOpB (C) \t\t %b %b", dut.Accumulator.AccumulateOperandB, dut.Accumulator.StickyB);
+          $display("AccumulateOpA (Int) \t\t %b %b", ~dut.Accumulator.AccumulateOperandA, ~dut.Accumulator.StickyA);
+          $display("CarryInForSubtract\t\t %b %b", {22'b0}, dut.Accumulator.AccumulateSignMismatch);
+          $display("");
+          $display("AccumulateInvertedMantisa \t%b", dut.Accumulator.AccumulateInvertedMantisa);
+        end else begin
+          $display("AccumulateOpA (Int) \t\t %b %b", dut.Accumulator.AccumulateOperandA, dut.Accumulator.StickyA);
+          $display("AccumulateOpB Inv \t\t %b %b", dut.Accumulator.SelectivelyInvertedAccumulateOpB[22:1], dut.Accumulator.SelectivelyInvertedAccumulateOpB[0]);
+          $display("CarryInForSubtract\t\t %b %b", {22'b0}, dut.Accumulator.AccumulateSignMismatch);
+          $display("");
+          $display("AccumulateStandardMantisa \t%b", dut.Accumulator.AccumulateStandardMantisa);
+        end
         $display("Select Invterted \t%b", dut.Accumulator.SelectAccumulateInvertedMantisa);
         $display("AccumulateResult \t%b", dut.AccumulateResultMantisa);
         $display("FinalLeftShiftAmt \t%b (%d)", dut.NormalizationShifter.ShiftAmt, dut.NormalizationShifter.ShiftAmt);
@@ -97,6 +103,8 @@ module testbench_fma16;
         $display("RoundBit | StickyBit \t%b", dut.Rounder.RoundBit | dut.Rounder.StickyBit);
         $display("");
         $display("Round Up \t\t%b", dut.Rounder.RoundUp);
+        $display("");
+        $display("Exp Increase Amt\t\t%d", signed'(-(dut.NormalizationShifter.ShiftAmt - 2)));
         $display("");
         $display("Result Exponent \t%b, (%d)", result[14:10], result[14:10]);
         $display("True Exponent \t%b, (%d)", rexpected[14:10], rexpected[14:10]);

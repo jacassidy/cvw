@@ -60,6 +60,8 @@ module  fma16 (
     logic       AccumulateSignMismatch;
     logic       RoundUpOverflow;
 
+    logic       ZeroResultSign;
+
     logic[3:0]  expectedFlags;
 
 
@@ -97,12 +99,14 @@ module  fma16 (
                             .MultiplicationResultZero(MultiplcationInputZero), .AccumulateSignMismatch, .StickyA, .StickyB,
                             .AccumulateResultSign, .AccumulateResultExponent, .AccumulateResultMantisa);
 
+    zeroSignAnticipator ZeroSignAnticipator(.roundmode, .OpASign, .OpBSign, .OpCSign, .MultiplicationExponentUnderflow, 
+                                            .MultiplcationInputZero, .ZeroResultSign);
+
     //Normalization
     normalizationShifter NormalizationShifter(.AccumulateResultMantisa, .AccumulateResultExponent, .AccumulateResultSign, 
                                                 .AccumulateSubtraction(AccumulateSignMismatch),  .MultiplicationExponentOverflow,
-                                                .ZeroResultSign(MultiplicationExponentUnderflow ? (OpASign ^ OpBSign) :
-                                                (MultiplcationInputZero ? (OpASign ^ OpBSign) & OpCSign : 1'b0)), // TODO seperate out and explain
-                                                .NormalizedMantisa, .NormalizedExponent, .NormalizedSign, .NormalizationOverflow);
+                                                .ZeroResultSign, .NormalizedMantisa, .NormalizedExponent, .NormalizedSign, 
+                                                .NormalizationOverflow);
 
     rounder Rounder(.roundmode, .NormalizedSign, .NormalizedExponent, .NormalizedMantisa, .StickyA, .StickyB, 
                     .PreRoundOverflow(MultiplicationExponentOverflow | (NormalizationOverflow)),
@@ -254,6 +258,45 @@ module accumulator (
     
     assign AccumulateResultExponent     = OpCExponentGreater ? OpCExponent : MultiplicationResultExponent[4:0];
     assign AccumulateResultMantisa      = SelectAccumulateInvertedMantisa ? AccumulateInvertedMantisa : AccumulateStandardMantisa;
+
+endmodule
+
+module zeroSignAnticipator(
+    input   logic[1:0]  roundmode,
+
+    input   logic       OpASign,
+    input   logic       OpBSign,
+    input   logic       OpCSign,
+
+    input   logic       MultiplicationExponentUnderflow,
+    input   logic       MultiplcationInputZero,
+
+    output  logic       ZeroResultSign
+);
+
+    always_comb begin
+        case(roundmode)
+            2'b00: begin //RZ
+                ZeroResultSign = (MultiplicationExponentUnderflow ? (OpASign ^ OpBSign) :
+                    (MultiplcationInputZero ? (OpASign ^ OpBSign) & OpCSign : 1'b0));
+            end
+            2'b10: begin //RN
+                ZeroResultSign = (MultiplicationExponentUnderflow ? (OpASign ^ OpBSign) :
+                    (MultiplcationInputZero ? (OpASign ^ OpBSign) | OpCSign : 1'b1));
+            end
+            2'b01: begin //RNE
+                ZeroResultSign = (MultiplicationExponentUnderflow ? (OpASign ^ OpBSign) :
+                    (MultiplcationInputZero ? (OpASign ^ OpBSign) & OpCSign : 1'b0));
+            end
+            2'b11: begin //RP
+                ZeroResultSign = (MultiplicationExponentUnderflow ? (OpASign ^ OpBSign) :
+                    (MultiplcationInputZero ? (OpASign ^ OpBSign) & OpCSign : 1'b0));
+            end
+            default: ZeroResultSign = 1'b0;
+        endcase
+    end
+
+    
 
 endmodule
 
