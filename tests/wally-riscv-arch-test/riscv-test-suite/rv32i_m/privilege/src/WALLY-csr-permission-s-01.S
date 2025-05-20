@@ -24,13 +24,13 @@
 #include "WALLY-TEST-LIB-32.h" 
 
 RVTEST_ISA("RV32I_Zicsr")
-RVTEST_CASE(0,"//check ISA:=regex(.*32.*);check ISA:=regex(.*I.*); def Drvtest_mtrap_routine=True;def TEST_CASE_1=True;def NO_SAIL=True;",csr-permission-s)
+RVTEST_CASE(0,"//check ISA:=regex(.*32.*);check ISA:=regex(.*I.*); def Drvtest_mtrap_routine=True;def TEST_CASE_1=True;",csr-permission-s)
 
 INIT_TESTS
 
 TRAP_HANDLER m
 
-# Test 5.2.3.6: Test that all the machine mode CSR's are innaccessible for reads and writes in S mode.
+# Test 5.2.3.6: Test that all the machine mode CSR's are inaccessible for reads and writes in S mode.
 
 GOTO_S_MODE 0x0, 0x0
 

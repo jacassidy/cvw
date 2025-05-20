@@ -8,10 +8,10 @@
 ## Created: March 1, 2021
 ## Modified: March 10, 2021
 ##
-## Purpose: Processes all compiled object files into 2 types of files which assist in debuging applications.
+## Purpose: Processes all compiled object files into 2 types of files which assist in debugging applications.
 ##          File 1: .addr: A sorted list of function starting addresses. 
 ##                  When a the PCE is greater than or equal to the function's starting address, the label will be associated with this address.
-##          File 2: .lab: A sorted list of funciton labels. The names of functions.  Modelsim will display these names rather than the function address.
+##          File 2: .lab: A sorted list of function labels. The names of functions.  Modelsim will display these names rather than the function address.
 ## 
 ## Copyright (C) 2021-23 Harvey Mudd College & Oklahoma State University
 ##
@@ -38,7 +38,7 @@ function processProgram {
 
     # when size = 16 => 64 bit
     # when size = 8 => 32 bit
-    local listOfAddr=`egrep -i "^[0-9a-f]{$size} <[0-9a-zA-Z_]+>" $objDumpFile`
+    local listOfAddr=$(grep -E -i "^[0-9a-f]{$size} <[0-9a-zA-Z_]+>" $objDumpFile)
 
     # skip if the wrong bit width.
     if [ -z "$listOfAddr" ]; then
@@ -46,16 +46,16 @@ function processProgram {
     fi
 
     # parse out the addresses and the labels
-    local addresses=`echo "$listOfAddr" | awk '{print $1}'`
-    local labels=`echo "$listOfAddr" | awk '{print  "\""$2"\"", "-color \"SpringGreen\","}' | tr -d '<>:'`
-    local labelsName=`echo "$listOfAddr" | awk '{print  ""$2""}' | tr -d '<>:'`
+    local addresses=$(echo "$listOfAddr" | awk '{print $1}')
+    local labels=$(echo "$listOfAddr" | awk '{print  "\""$2"\"", "-color \"SpringGreen\","}' | tr -d '<>:')
+    local labelsName=$(echo "$listOfAddr" | awk '{print  ""$2""}' | tr -d '<>:')
 
     # output per program function address list
     echo "$addresses" > $objDumpFile.addr
     echo "$labelsName" > $objDumpFile.lab    
 
     # need to add some formatting to each line
-    local numLines=`echo "$listOfAddr" | wc -l`
+    local numLines=$(echo "$listOfAddr" | wc -l)
 
     return 0
 }

@@ -24,16 +24,16 @@
 #include "WALLY-TEST-LIB-64.h" 
 
 RVTEST_ISA("RV64I_Zicsr")
-RVTEST_CASE(0,"//check ISA:=regex(.*64.*);check ISA:=regex(.*I.*);def TEST_CASE_1=True;def NO_SAIL=True;",csr-permission-s)
+RVTEST_CASE(0,"//check ISA:=regex(.*64.*);check ISA:=regex(.*I.*);def TEST_CASE_1=True;",csr-permission-s)
 
 INIT_TESTS
 
 TRAP_HANDLER m
 
-# Test 5.2.3.6: Test that all the machine mode CSR's are innaccessible for reads and writes in S mode.
+# Test 5.2.3.6: Test that all the machine mode CSR's are inaccessible for reads and writes in S mode.
 
 # *** several of these appear not to be implemented in the assembler? 
-# I get "assembler messages: error: unkown CSR" with many of them.
+# I get "assembler messages: error: unknown CSR" with many of them.
 
 GOTO_S_MODE 0x0, 0x0
 

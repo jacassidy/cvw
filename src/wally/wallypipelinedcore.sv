@@ -62,7 +62,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [31:0]                   InstrD;
   logic [31:0]                   InstrM, InstrOrigM;
   logic [P.XLEN-1:0]             PCSpillF, PCE, PCLinkE;
-  logic [P.XLEN-1:0]             PCM;
+  logic [P.XLEN-1:0]             PCM, PCSpillM;
   logic [P.XLEN-1:0]             CSRReadValW, MDUResultW;
   logic [P.XLEN-1:0]             EPCM, TrapVectorM;
   logic [1:0]                    MemRWE;
@@ -130,6 +130,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
   logic [P.XLEN-1:0]             IEUAdrE;
   logic [P.XLEN-1:0]             WriteDataM;
   logic [P.XLEN-1:0]             IEUAdrM;  
+  logic [P.XLEN-1:0]             IEUAdrxTvalM;  
   logic [P.LLEN-1:0]             ReadDataW;  
   logic                          CommittedM;
 
@@ -183,7 +184,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .PCLinkE, .PCSrcE, .IEUAdrE, .IEUAdrM, .PCE, .BPWrongE,  .BPWrongM, 
     // Mem
     .CommittedF, .EPCM, .TrapVectorM, .RetM, .TrapM, .InvalidateICacheM, .CSRWriteFenceM,
-    .InstrD, .InstrM, .InstrOrigM, .PCM, .IClassM, .BPDirWrongM,
+    .InstrD, .InstrM, .InstrOrigM, .PCM, .PCSpillM, .IClassM, .BPDirWrongM,
     .BTAWrongM, .RASPredPCWrongM, .IClassWrongM,
     // Faults out
     .IllegalBaseInstrD, .IllegalFPUInstrD, .InstrPageFaultF, .IllegalIEUFPUInstrD, .InstrMisalignedFaultM,
@@ -242,6 +243,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     .ENVCFG_ADUE,                 // from csr
     .sfencevmaM,                  // connects to privilege
     .DCacheStallM,                // connects to privilege
+    .IEUAdrxTvalM,                // connects to privilege
     .LoadPageFaultM,              // connects to privilege
     .StoreAmoPageFaultM,          // connects to privilege
     .LoadMisalignedFaultM,        // connects to privilege
@@ -287,7 +289,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
     privileged #(P) priv(
       .clk, .reset,
       .FlushD, .FlushE, .FlushM, .FlushW, .StallD, .StallE, .StallM, .StallW,
-      .CSRReadM, .CSRWriteM, .SrcAM, .PCM, 
+      .CSRReadM, .CSRWriteM, .SrcAM, .PCM, .PCSpillM, 
       .InstrM, .InstrOrigM, .CSRReadValW, .EPCM, .TrapVectorM,
       .RetM, .TrapM, .sfencevmaM, .InvalidateICacheM, .DCacheStallM, .ICacheStallF,
       .InstrValidM, .CommittedM, .CommittedF,
@@ -299,7 +301,7 @@ module wallypipelinedcore import cvw::*; #(parameter cvw_t P) (
       .InstrMisalignedFaultM, .IllegalIEUFPUInstrD, 
       .LoadMisalignedFaultM, .StoreAmoMisalignedFaultM,
       .MTimerInt, .MExtInt, .SExtInt, .MSwInt,
-      .MTIME_CLINT, .IEUAdrM, .SetFflagsM,
+      .MTIME_CLINT, .IEUAdrxTvalM, .SetFflagsM,
       .InstrAccessFaultF, .HPTWInstrAccessFaultF, .HPTWInstrPageFaultF, .LoadAccessFaultM, .StoreAmoAccessFaultM, .SelHPTW,
       .PrivilegeModeW, .SATP_REGW,
       .STATUS_MXR, .STATUS_SUM, .STATUS_MPRV, .STATUS_MPP, .STATUS_FS, 

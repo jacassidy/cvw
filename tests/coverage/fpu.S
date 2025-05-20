@@ -24,7 +24,7 @@
 // and limitations under the License.
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// load code to initalize stack, handle interrupts, terminate
+// load code to initialize stack, handle interrupts, terminate
 #include "WALLY-init-lib.h"
 
 main:
@@ -120,9 +120,9 @@ main:
     fcvt.s.l ft0, t0
     fcvt.s.lu ft0, t0
 
-    // Tests verfying that half and quad floating point convertion instructions are not supported by rv64gc
+    // Tests verifying that half and quad floating point conversion instructions are not supported by rv64gc
     # fcvt.h.d ft3, ft0 // Somehow this instruction is taking the route on line 124
-                      // idea: enable the Q extension for this to work properly? A: Q and halfs not supported in rv64gc
+                      // idea: enable the Q extension for this to work properly? A: Q and halves not supported in rv64gc
     # fcvt.h.w ft3, a0
     # fcvt.w.h a0, ft0
     # fcvt.q.w ft3, a0
@@ -214,6 +214,9 @@ TestData2:
 .int 0xbf800000 #FP -1.0
 .int 0x7fa00000 #SNaN
 .int 0x3fffffff #OverFlow Test
+# workaround for binutils 2.44 bug with displaying 6 byte instructions (https://sourceware.org/pipermail/binutils/2025-February/139413.html)
+.word 0x0000
+.align 3
 TestData3:
 .dword 0xABCD543212345678 # NaN box test
 DivTestData:

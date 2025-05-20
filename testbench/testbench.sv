@@ -2,6 +2,7 @@
 // testbench.sv
 //
 // Written: David_Harris@hmc.edu 9 January 2021
+//// Modified by sanarayanan@hmc.edu, May 2025
 // Modified:
 //
 // Purpose: Wally Testbench and helper modules
@@ -85,7 +86,7 @@ module testbench;
   logic        ResetMem;
 
   // Variables that can be overwritten with $value$plusargs at start of simulation
-  string       TEST, ElfFile;
+  string       TEST, ElfFile, sim_log_prefix;
   integer      INSTR_LIMIT;
 
   // DUT signals
@@ -141,6 +142,10 @@ module testbench;
       ElfFile = "none";
     if (!$value$plusargs("INSTR_LIMIT=%d", INSTR_LIMIT))
       INSTR_LIMIT = 0;
+    // Check if sim_log_prefix is passed as a command-line argument
+    if (!$value$plusargs("sim_log_prefix=%s", sim_log_prefix)) begin
+        sim_log_prefix = "";  // Assign default value if not passed
+    end
     //$display("TEST = %s ElfFile = %s", TEST, ElfFile);
 
     // pick tests based on modes supported
@@ -264,7 +269,7 @@ module testbench;
   // Do this in parts so it easier to verify
   // part 1: build a version which echos the same behavior as the below code, but does not drive anything
   // part 2: drive some of the controls
-  // part 3: drive all logic and remove old inital and always @ negedge clk block
+  // part 3: drive all logic and remove old initial and always @ negedge clk block
 
   typedef enum logic [3:0]{STATE_TESTBENCH_RESET,
                            STATE_INIT_TEST,
@@ -289,6 +294,7 @@ module testbench;
   string  signame, elffilename, memfilename, bootmemfilename, uartoutfilename, pathname;
   integer begin_signature_addr, end_signature_addr, signature_size;
   integer uartoutfile;
+
 
   assign ResetThreshold = 3'd5;
 
@@ -407,7 +413,7 @@ module testbench;
       end
       // declare memory labels that interest us, the updateProgramAddrLabelArray task will find
       // the addr of each label and fill the array. To expand, add more elements to this array
-      // and initialize them to zero (also initilaize them to zero at the start of the next test)
+      // and initialize them to zero (also initialize them to zero at the start of the next test)
       updateProgramAddrLabelArray(ProgramAddrMapFile, ProgramLabelMapFile, memfilename, WALLY_DIR, ProgramAddrLabelArray);
     end
     if(Validate) begin
@@ -682,13 +688,13 @@ module testbench;
                 InstrM,  InstrW,
                 InstrFName, InstrDName, InstrEName, InstrMName, InstrWName);
 
-  // watch for problems such as lockup, reading unitialized memory, bad configs
+  // watch for problems such as lockup, reading uninitialized memory, bad configs
   watchdog #(P.XLEN, 1000000) watchdog(.clk, .reset, .TEST);  // check if PCW is stuck
   ramxdetector #(P.XLEN, P.LLEN) ramxdetector(clk, dut.core.lsu.MemRWM[1], dut.core.lsu.LSULoadAccessFaultM, dut.core.lsu.ReadDataM,
                                       dut.core.ifu.PCM, InstrM, dut.core.lsu.IEUAdrM, InstrMName);
   riscvassertions #(P) riscvassertions();  // check assertions for a legal configuration
   loggers #(P, PrintHPMCounters, I_CACHE_ADDR_LOGGER, D_CACHE_ADDR_LOGGER, BPRED_LOGGER)
-    loggers (clk, reset, DCacheFlushStart, DCacheFlushDone, memfilename, TEST);
+    loggers (clk, reset, DCacheFlushStart, DCacheFlushDone, memfilename, sim_log_prefix, TEST);
 
   // track the current function or global label
   if (DEBUG > 0 | ((PrintHPMCounters | BPRED_LOGGER) & P.ZICNTR_SUPPORTED)) begin : functionName
@@ -715,14 +721,19 @@ module testbench;
   // 3. or PC is stuck at 0
 
 
+  logic [P.XLEN-1:0] PCM;
+  // PCM is not valid for configurations without ZICSR or branch predictor
+  flopenr #(P.XLEN) PCMReg(clk, reset, ~dut.core.StallM, dut.core.PCE, PCM);
   always @(posedge clk) begin
-  //  if (reset) PrevPCZero <= 0;
-  //  else if (dut.core.InstrValidM) PrevPCZero <= (functionName.PCM == 0 & dut.core.ifu.InstrM == 0);
     TestComplete <= ((InstrM == 32'h6f) & dut.core.InstrValidM ) |
 		   ((dut.core.lsu.IEUAdrM == ProgramAddrLabelArray["tohost"] & dut.core.lsu.IEUAdrM != 0) & InstrMName == "SW"); // |
     //   (functionName.PCM == 0 & dut.core.ifu.InstrM == 0 & dut.core.InstrValidM & PrevPCZero));
-   // if (functionName.PCM == 0 & dut.core.ifu.InstrM == 0 & dut.core.InstrValidM & PrevPCZero)
-    //  $error("Program fetched illegal instruction 0x00000000 from address 0x00000000 twice in a row.  Usually due to fault with no fault handler.");
+    if (reset) PrevPCZero <= 0;
+    else if (dut.core.InstrValidM) PrevPCZero <= (PCM == 0 & dut.core.ifu.InstrM == 0);
+    if (PCM == 0 & dut.core.ifu.InstrM == 0 & dut.core.InstrValidM & PrevPCZero) begin
+      $error("Program fetched illegal instruction 0x00000000 from address 0x00000000 twice in a row.  Usually due to fault with no fault handler.");
+      $fatal(1);
+    end
   end
 
   DCacheFlushFSM #(P) DCacheFlushFSM(.clk, .start(DCacheFlushStart), .done(DCacheFlushDone));
@@ -766,7 +777,7 @@ end
 
   string filename;
   initial begin
-    // imperasDV requires the elffile be defined at the begining of the simulation.
+    // imperasDV requires the elffile be defined at the beginning of the simulation.
     int iter;
     longint x64;
     int     x32[2];

@@ -3,6 +3,7 @@
 //
 // Written: Rose Thompson rose@rosethompson.net
 // Modified: 14 June 2023
+// Modified by sanarayanan@hmc.edu, May 2025
 // 
 // Purpose: Log branch instructions, log instruction fetches,
 //          log I$ misses, log data memory accesses, log D$ misses, and
@@ -40,6 +41,7 @@ module loggers import cvw::*; #(parameter cvw_t P,
 //  input logic StartSample,
 //  input logic EndSample,
   input string memfilename,
+  input string sim_log_prefix,
   input string TEST
   );
   
@@ -126,8 +128,8 @@ module loggers import cvw::*; #(parameter cvw_t P,
       assign EndSample = EndSampleFirst & ~ EndSampleDelayed;
 
     end else begin
-      // default start condiction is reset
-      // default end condiction is end of test (DCacheFlushDone)
+      // default start condition is reset
+      // default end condition is end of test (DCacheFlushDone)
       //assign StartSampleFirst = reset;
       //flopr #(1) StartSampleReg(clk, reset, StartSampleFirst, StartSampleDelayed);
       //assign StartSample = StartSampleFirst & ~ StartSampleDelayed;
@@ -180,7 +182,7 @@ module loggers import cvw::*; #(parameter cvw_t P,
     assign InvalEdge = dut.core.ifu.InvalidateICacheM & ~InvalDelayed;
 
     initial begin
-      LogFile = "ICache.log";
+      LogFile = {sim_log_prefix, "ICache.log"}; // Prepend the directory
       file = $fopen(LogFile, "w");
       $fwrite(file, "BEGIN %s\n", memfilename);
     end
@@ -221,7 +223,7 @@ module loggers import cvw::*; #(parameter cvw_t P,
                          dut.core.lsu.bus.dcache.dcache.CMOpM == 4'b1000 ? "Z" :   // cbo.zero
                          dut.core.lsu.bus.dcache.dcache.CMOpM == 4'b0001 ? "V" :   // cbo.inval should just clear the valid and dirty bits
                          dut.core.lsu.bus.dcache.dcache.CMOpM == 4'b0010 ? "C" :   // cbo.clean should act like a read in terms of the lru, but clears the dirty bit
-                         dut.core.lsu.bus.dcache.dcache.CMOpM == 4'b0100 ? "L" :   // cbo.flush should just clear and the valid and drity bits
+                         dut.core.lsu.bus.dcache.dcache.CMOpM == 4'b0100 ? "L" :   // cbo.flush should just clear and the valid and dirty bits
                          "NULL";
     end
 
@@ -234,7 +236,7 @@ module loggers import cvw::*; #(parameter cvw_t P,
                      (AccessTypeString != "NULL");
 
     initial begin
-      LogFile = "DCache.log";
+      LogFile = {sim_log_prefix, "DCache.log"};  // Prepend the directory
       file = $fopen(LogFile, "w");
       $fwrite(file, "BEGIN %s\n", memfilename);
     end

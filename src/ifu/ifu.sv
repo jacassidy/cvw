@@ -49,7 +49,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   output logic [P.XLEN-1:0]    PCSpillF,                                 // PCF with possible + 2 to handle spill to HPTW
   // Execute
   output logic [P.XLEN-1:0]    PCLinkE,                                  // The address following the branch instruction. (AKA Fall through address)
-  input  logic                 PCSrcE,                                   // Executation stage branch is taken
+  input  logic                 PCSrcE,                                   // Execution stage branch is taken
   input  logic [P.XLEN-1:0]    IEUAdrE,                                  // The branch/jump target address
   input  logic [P.XLEN-1:0]    IEUAdrM,                                  // The branch/jump target address
   output logic [P.XLEN-1:0]    PCE,                                      // Execution stage instruction address
@@ -64,6 +64,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   output logic [31:0]          InstrM,                                   // The decoded instruction in Memory stage
   output logic [31:0]          InstrOrigM,                               // Original compressed or uncompressed instruction in Memory stage for Illegal Instruction MTVAL
   output logic [P.XLEN-1:0]    PCM,                                      // Memory stage instruction address
+  output logic [P.XLEN-1:0]    PCSpillM,                                 // Memory stage instruction address
   // branch predictor
   output logic [3:0]           IClassM,                              // The valid instruction class. 1-hot encoded as jalr, ret, jr (not ret), j, br
   output logic                 BPDirWrongM,                          // Prediction direction is wrong
@@ -78,7 +79,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   output logic                 IllegalIEUFPUInstrD,                      // Illegal instruction including compressed & FP
   output logic                 InstrMisalignedFaultM,                    // Branch target not aligned to 4 bytes if no compressed allowed (2 bytes if allowed)
   // mmu management
-  input  logic [1:0]           PrivilegeModeW,                           // Priviledge mode in Writeback stage
+  input  logic [1:0]           PrivilegeModeW,                           // Privilege mode in Writeback stage
   input  logic [P.XLEN-1:0]    PTE,                                      // Hardware page table walker (HPTW) writes Page table entry (PTE) to ITLB
   input  logic [1:0]           PageType,                                 // Hardware page table walker (HPTW) writes PageType to ITLB
   input  logic                 ITLBWriteF,                               // Writes PTE and PageType to ITLB
@@ -149,13 +150,23 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   /////////////////////////////////////////////////////////////////////////////////////////////
 
   if(P.ZCA_SUPPORTED) begin : Spill
+    logic [P.XLEN-1:0] PCSpillD, PCSpillE;
+    logic [P.XLEN-1:0] PCIncrM;
+    logic              SelSpillF, SelSpillD, SelSpillE, SelSpillM;
     spill #(P) spill(.clk, .reset, .StallF, .FlushD, .PCF, .PCPlus4F, .PCNextF, .InstrRawF,  .CacheableF, 
-      .IFUCacheBusStallF, .ITLBMissOrUpdateAF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .PostSpillInstrRawF, .CompressedF);
+      .IFUCacheBusStallF, .ITLBMissOrUpdateAF, .PCSpillNextF, .PCSpillF, .SelSpillNextF, .SelSpillF, .PostSpillInstrRawF, .CompressedF);
+    flopenr #(1) SpillDReg(clk, reset, ~StallD, SelSpillF, SelSpillD);
+    flopenr #(1) SpillEReg(clk, reset, ~StallE, SelSpillD, SelSpillE);
+    flopenr #(1) SpillMReg(clk, reset, ~StallM, SelSpillE, SelSpillM);
+    assign PCIncrM = PCM + 'd2;
+    mux2 #(P.XLEN) pcspillmmux(PCM, PCIncrM, SelSpillM, PCSpillM);
+
   end else begin : NoSpill
     assign PCSpillNextF = PCNextF;
     assign PCSpillF = PCF;
     assign PostSpillInstrRawF = InstrRawF;
     assign {SelSpillNextF, CompressedF} = '0;
+    assign PCSpillM = PCM;
   end
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,7 +219,7 @@ module ifu import cvw::*;  #(parameter cvw_t P) (
   ////////////////////////////////////////////////////////////////////////////////////////////////
   
   // CommittedM tells the CPU's privileged unit the current instruction
-  // in the memory stage is a memory operaton and that memory operation is either completed
+  // in the memory stage is a memory operation and that memory operation is either completed
   // or is partially executed. Partially completed memory operations need to prevent an interrupts.
   // There is not a clean way to restore back to a partial executed instruction.  CommiteedM will
   // delay the interrupt until the LSU is in a clean state.

@@ -94,7 +94,7 @@ string embench[] = '{
   "bd_speedopt_speed/src/edn/edn",
   "bd_speedopt_speed/src/huffbench/huffbench",
   "bd_speedopt_speed/src/matmult-int/matmult-int",
-  "bd_speedopt_speed/src/md5sum/md5sum", //commenting out tests from embench 2.0. When embench 2.0 launches stabilty, add these tests back
+  "bd_speedopt_speed/src/md5sum/md5sum", //commenting out tests from embench 2.0. When embench 2.0 launches stably, add these tests back
   "bd_speedopt_speed/src/minver/minver",
   "bd_speedopt_speed/src/nettle-aes/nettle-aes",
   "bd_speedopt_speed/src/nettle-sha256/nettle-sha256",
@@ -259,9 +259,7 @@ string arch64priv[] = '{
   "rv64i_m/privilege/src/misalign-blt-01.S",
   "rv64i_m/privilege/src/misalign-bltu-01.S",
   "rv64i_m/privilege/src/misalign-bne-01.S",
-  "rv64i_m/privilege/src/misalign-jal-01.S"
-  // commented out for now because rv64gc supports Zicclsm, but Sail does not yet.  Restore when Sail supports Zicclsm.
-  /* -----\/----- EXCLUDED -----\/-----
+  "rv64i_m/privilege/src/misalign-jal-01.S",
   "rv64i_m/privilege/src/misalign-ld-01.S",
   "rv64i_m/privilege/src/misalign-lh-01.S",
   "rv64i_m/privilege/src/misalign-lhu-01.S",
@@ -270,7 +268,6 @@ string arch64priv[] = '{
   "rv64i_m/privilege/src/misalign-sd-01.S",
   "rv64i_m/privilege/src/misalign-sh-01.S",
   "rv64i_m/privilege/src/misalign-sw-01.S"
-  -----/\----- EXCLUDED -----/\----- */
 };
 
 string arch64zifencei[] = '{
@@ -1867,12 +1864,12 @@ string arch64d[] = '{
   "rv64i_m/D/src/fssub.d_b8-01.S"
 };
 
-string arch64zicboz[] = '{ // as of 12/17/23 presently cbo.zero is the only CMO insturction with riscv-arch-test support
+string arch64zicboz[] = '{ // as of 12/17/23 presently cbo.zero is the only CMO instruction with riscv-arch-test support
   `RISCVARCHTEST,
   "rv64i_m/CMO/src/cbo.zero-01.S"
 };
 
-string arch32zicboz[] = '{ // as of 12/17/23 presently cbo.zero is the only CMO insturction with riscv-arch-test support
+string arch32zicboz[] = '{ // as of 12/17/23 presently cbo.zero is the only CMO instruction with riscv-arch-test support
   `RISCVARCHTEST,
   "rv32i_m/CMO/src/cbo.zero-01.S"
 };
