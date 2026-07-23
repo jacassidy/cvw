@@ -33,3 +33,6 @@
   path = addins/riscv-arch-test-cvw
   url = https://github.com/riscv-non-isa/riscv-arch-test
   branch = act4
+[submodule "examples/exercises/lynn/RISC-V-Pipelined-Processor"]
+	path = examples/exercises/lynn/RISC-V-Pipelined-Processor
+	url = https://github.com/jacassidy/RISC-V-Pipelined-Processor
