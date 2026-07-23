@@ -38,9 +38,10 @@ module ram1p1rwb #(
             logic[DATA_BITS-1:0] memory_entry;
             for (i = 0; i < MEMORY_SIZE_ENTRIES; i++) begin
                 memory_entry = InitMem [EXTRA_ENTRIES + i];
-                if (memory_entry === 'x)    Memory[i] <= '0;
-                else                        Memory[i] <= memory_entry;
-                // Memory[i] <= memory_entry;
+                // blocking assigns: Verilator does not support delayed
+                // assignment to unpacked arrays inside loops
+                if (memory_entry === 'x)    Memory[i] = '0;
+                else                        Memory[i] = memory_entry;
             end
         end else if (En && ((unsigned'(MemoryAddress) < unsigned'(MEMORY_ADR_OFFSET)) ||
                     (unsigned'(MemoryAddress) > unsigned'(MEMORY_ADR_OFFSET + (MEMORY_SIZE_ENTRIES-1) * (DATA_BITS/8))))) begin

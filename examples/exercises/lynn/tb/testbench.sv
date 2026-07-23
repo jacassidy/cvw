@@ -28,6 +28,15 @@ module testbench;
   logic clk;
   logic reset;
 
+`ifdef TRACE
+  // Optional waveform dump (enable with make TRACE=1). Produces an FST that
+  // GTKWave or Surfer can open. Off by default to keep simulation fast.
+  initial begin
+    $dumpfile("wave.fst");
+    $dumpvars(0, testbench);
+  end
+`endif
+
   // 100 MHz clock: 10 ns period (change as needed)
   initial clk = 0;
   always #5 clk = ~clk;
@@ -35,7 +44,8 @@ module testbench;
   // Simple reset sequence
   initial begin
     reset = 1;
-    #10;         // hold reset for a bit
+    #12;         // hold reset past the first negedge (memory init) but
+                 // deassert between clock edges to avoid a race
     reset = 0;   // release reset
   end
 
@@ -53,13 +63,23 @@ module testbench;
 
 /* ------- DEBUG PRINTS ------- */
 
+  // Optional cycle-by-cycle trace (+VERBOSE=1) and watchdog (+MAX_CYCLES=N)
+  logic [63:0] max_cycles;
+  logic        verbose;
+  initial begin
+    max_cycles = 64'd10_000_000; // default watchdog
+    verbose    = 1'b0;
+    void'($value$plusargs("MAX_CYCLES=%d", max_cycles));
+    void'($value$plusargs("VERBOSE=%d", verbose));
+  end
+
   always @(negedge clk) begin
     int i;
     #1;
 
     if (~reset) begin
 
-      //$display("PC: %h \t Instr: %h", PC, Instr);
+      if (verbose) $display("PC: %h \t Instr: %h \t MemEn: %b WE: %b Adr: %h WD: %h RD: %h", PC, Instr, MemEn, WriteEn, DataAdr, WriteData, ReadData);
 
       // $display("MemEn: %b",
       //         MemEn
@@ -216,6 +236,14 @@ logic [63:0] cycle_count;
 always_ff @(posedge clk) begin
   if (reset) cycle_count <= 0;
   else       cycle_count <= cycle_count + 1;
+end
+
+// Watchdog: end simulation with an error if the test runs too long
+always @(negedge clk) begin
+  if (!reset && cycle_count > max_cycles) begin
+    $display("ERROR: Test Failed (watchdog timeout after %0d cycles)", max_cycles);
+    $fatal(1);
+  end
 end
 
 // Only respond to mtime reads

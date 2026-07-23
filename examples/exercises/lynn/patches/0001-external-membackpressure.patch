@@ -1,0 +1,156 @@
+diff --git a/incdir/parameters.svh b/incdir/parameters.svh
+index 39cfff8..0af2149 100644
+--- a/incdir/parameters.svh
++++ b/incdir/parameters.svh
+@@ -14,7 +14,12 @@
+     `define ZIHPM
+ 
+     //`define DEBUGGING
++    // DEBUG_PRINT enables simulation-only $display/$finish diagnostics. Disable
++    // them under SYNTHESIS so Yosys does not choke on system tasks in always
++    // blocks and so they do not affect the synthesized design.
++    `ifndef SYNTHESIS
+     `define DEBUG_PRINT
++    `endif
+ 
+     // Derived / Permanent signals
+ 
+diff --git a/src/ComputeCore.sv b/src/ComputeCore.sv
+index ea73af5..18839be 100644
+--- a/src/ComputeCore.sv
++++ b/src/ComputeCore.sv
+@@ -18,7 +18,14 @@ module computeCore #(
+     output  logic[`XLEN-1:0]       External_MemWriteData,   //Memory to be saved
+ 
+     input   logic[`WORD_SIZE-1:0]  External_Instr,
+-    input   logic[`XLEN-1:0]       External_MemReadData
++    input   logic[`XLEN-1:0]       External_MemReadData,
++
++    // External memory backpressure. When asserted (active high) the memory
++    // access in the M stage has not completed (e.g. a data-cache miss refill).
++    // The whole single-cycle core is held: the PC does not advance and no
++    // architectural state (register file, CSRs, minstret retirement) commits.
++    // Tie to 1'b0 for the original direct-memory (uncached) wrapper.
++    input   logic                  External_MemStall
+ );
+ 
+ 
+@@ -140,6 +147,7 @@ module computeCore #(
+     _IStage IStage (
+         .clk, .reset,
+         .PCNext_I,
++        .External_MemStall,
+     `ifdef PIPELINED
+         .StallPC,
+     `endif
+@@ -183,7 +191,9 @@ module computeCore #(
+         .clk, .reset,
+         .Instr_R, .PC_R, .PCp4_R, .ValidInstruction_R,
+ 
+-        .RegWrite_W,
++        // Gate the register-file write while a memory access is outstanding so
++        // the stalled instruction does not commit its result more than once.
++        .RegWrite_W(RegWrite_W & ~External_MemStall),
+         .rd1Adr_W,
+         .Rd1_W,
+ 
+@@ -283,7 +293,12 @@ module computeCore #(
+         .RegWrite_C, .ResultSrc_C, .TruncType_C,
+ 
+     `ifdef ZICSR
+-        .CSREn_C, .CSROp_C,
++        // CSR instructions never access data memory, so they never trigger a
++        // cache-miss stall: CSREn_C is already 0 whenever External_MemStall is
++        // asserted. Gating it here would add a redundant combinational path from
++        // the cache's Stall back into the C stage (a false UNOPTFLAT loop), so
++        // it is intentionally left ungated.
++        .CSREn_C(CSREn_C), .CSROp_C,
+     `endif
+ 
+     `ifdef PIPELINED
+@@ -293,7 +308,8 @@ module computeCore #(
+     `endif
+ 
+     `ifdef ZICNTR
+-        .ValidInstruction_W,
++        // Gate retirement so minstret counts the stalled instruction exactly once.
++        .ValidInstruction_W(ValidInstruction_W & ~External_MemStall),
+     `endif
+         .AluResult_C,
+         .PCSrcPostConditional_C,
+diff --git a/src/ICs/Flop.sv b/src/ICs/Flop.sv
+index 89fc39d..a79b99e 100644
+--- a/src/ICs/Flop.sv
++++ b/src/ICs/Flop.sv
+@@ -167,8 +167,10 @@ module flopCSR #(
+                 HighLevelControl::Clear:    Q <= Q & ~OpD;
+                 HighLevelControl::Read:     ;
+                 default: begin
++                    `ifndef SYNTHESIS
+                     $display("Invalid CSR flop operation");
+                     $finish(-1);
++                    `endif
+                 end
+             endcase
+         end else if (WriteEn) begin
+diff --git a/src/TestingCore.sv b/src/TestingCore.sv
+index 50d3207..943fd0f 100644
+--- a/src/TestingCore.sv
++++ b/src/TestingCore.sv
+@@ -31,7 +31,8 @@ module testingCore(
+     //Compute Core
+     computeCore ComputeCore(.clk, .reset, .External_PC(InstrAdr), .External_MemEn(MemEn), .External_MemWriteEn(MemWriteEn),
+         .External_MemWriteByteEn(MemWriteByteEn), .External_MemAdr(MemAdr), .External_MemWriteData(MemWriteData),
+-        .External_Instr(Instr), .External_MemReadData(MemReadData));
++        .External_Instr(Instr), .External_MemReadData(MemReadData),
++        .External_MemStall(1'b0)); // uncached baseline: memory is always ready
+ 
+     //Data Memory
+     assign WriteByteEn      = MemWriteByteEn & {4{MemWriteEn}};
+diff --git a/src/_Stages/1_Instruction/_IStage.sv b/src/_Stages/1_Instruction/_IStage.sv
+index 6948462..2aaed15 100644
+--- a/src/_Stages/1_Instruction/_IStage.sv
++++ b/src/_Stages/1_Instruction/_IStage.sv
+@@ -8,6 +8,9 @@ module _IStage (
+ 
+     input  logic [`XLEN-1:0]        PCNext_I,
+ 
++    // Hold the PC while an external memory access is outstanding (cache miss).
++    input  logic                    External_MemStall,
++
+ `ifdef PIPELINED
+     input  logic                    StallPC,
+ `endif
+@@ -24,22 +27,28 @@ module _IStage (
+ );
+ 
+     logic [`XLEN-1:0] PROGRAM_ENTRY_ADR;
++`ifdef SYNTHESIS
++    // Synthesis: the reset entry point is a constant (0). The plusarg override
++    // is simulation-only; $value$plusargs is not synthesizable.
++    assign PROGRAM_ENTRY_ADR = '0;
++`else
+     initial begin
+         PROGRAM_ENTRY_ADR = '0; // default
+         void'($value$plusargs("ENTRY_ADDR=%h", PROGRAM_ENTRY_ADR)); // override if provided
+         $display("[TB] ENTRY_ADDR = 0x%h", PROGRAM_ENTRY_ADR);
+     end
++`endif
+ 
+     //Program Counter
+     `ifdef PIPELINED
+         always_ff @( posedge clk ) begin
+-            if (reset)          PC_I <= PROGRAM_ENTRY_ADR;
+-            else if (~StallPC)  PC_I <= PCNext_I;
++            if (reset)                            PC_I <= PROGRAM_ENTRY_ADR;
++            else if (~StallPC & ~External_MemStall) PC_I <= PCNext_I;
+         end
+     `else
+         always_ff @( posedge clk ) begin
+-            if (reset)  PC_I <= PROGRAM_ENTRY_ADR;
+-            else        PC_I <= PCNext_I;
++            if (reset)                 PC_I <= PROGRAM_ENTRY_ADR;
++            else if (~External_MemStall) PC_I <= PCNext_I;
+         end
+     `endif
+ 

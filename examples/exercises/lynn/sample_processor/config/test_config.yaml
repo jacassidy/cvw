@@ -1,9 +1,10 @@
 name: lynn-rv32I
-#compiler_exe: /opt/riscv/bin/riscv64-unknown-elf-gcc # executable name on $PATH or full path to executable
-#objdump_exe: /opt/riscv/bin/riscv64-unknown-elf-objdump # executable name on $PATH or full path to executable, optional
-compiler_exe: clang
-objdump_exe: llvm-objdump
-ref_model_exe: /opt/riscv/bin/sail_riscv_sim # executable name on $PATH or full path to executable
+# Free GNU toolchain + prebuilt Sail reference model. Names are resolved on
+# PATH by the act framework; the Lynn act4 flow puts $RISCV/bin (GCC >= 15) and
+# the vendored sail binary on PATH. Override with absolute paths if desired.
+compiler_exe: riscv64-unknown-elf-gcc
+objdump_exe: riscv64-unknown-elf-objdump
+ref_model_exe: sail_riscv_sim
 ref_model_type: sail # sail or spike
 udb_config: lynn-rv32I.yaml
 linker_script: link.ld

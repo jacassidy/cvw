@@ -1,0 +1,37 @@
+# Lynn cache-development exercise — generated / external artifacts
+
+# External processor checkout (fetched by `make fetch-core`)
+/external/RISC-V-Pipelined-Processor/
+
+# Vendored free toolchain + Liberty (fetched by `make fetch-tools`)
+/external/tools/
+/external/lib/
+
+# Verilator build products
+/work/
+
+# Per-test build/run artifacts
+tests/*/work/
+tests/act4/work/
+coremark/work/
+synth/work/
+
+# Simulation logs, memfiles, waveforms, debug dumps
+*.sim.log
+*.sail.log
+*.sail.trace
+*.memfile
+*.objdump
+*.size
+*.read
+*.vcd
+*.fst
+
+# Benchmark outputs are regenerated; keep the directory but ignore contents
+/results/
+
+# Score log
+score.log
+
+# Backup files
+*.bak
